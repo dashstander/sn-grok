@@ -1,3 +1,7 @@
+from itertools import permutations, product
+import polars as pl
+
+
 class Permutation:
     
     def __init__(self, sigma):
@@ -7,6 +11,9 @@ class Permutation:
     
     def __len__(self):
         return len(self.sigma)
+
+    def __hash__(self):
+        return hash(self.sigma)
     
     def __call__(self, x):
         if len(x) != len(self):
@@ -45,4 +52,21 @@ class Permutation:
     def parity(self):
         odd_cycles = [c for c in self.cycle_rep if (len(c) % 2 == 0)]
         return len(odd_cycles) % 2
+
+
+def make_permutation_dataset(n: int):
+    mult_table = []
+    perms
+    index = {}
+    for i, seq in enumerate(permutations(list(range(n)))):
+        p = Permutation(seq)
+        perms.append(p)
+        index[p] = i
+    for perm1, perm2 in product(perms, repeat=2):
+        q = perm1(perm2)
+        mult_table.append((index[perm1.sigma], index[perm2.sigma], index[q.sigma]))
+    return perms, mult_table
+    
+
+
 
