@@ -1,0 +1,20 @@
+[train]
+n = 5
+frac_train = 0.5
+num_epochs = 50_000
+grok_threshold = 0.00001
+checkpoint_every = 100
+device = 'cuda'
+seed = 999
+
+[model]
+embed_dim = 256
+model_dim = 128
+tie_lr = false
+
+
+[optimizer]
+lr = 1e-3
+wd = 1.
+betas = [0.9, 0.98]
+
