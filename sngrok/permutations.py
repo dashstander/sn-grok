@@ -56,12 +56,12 @@ class Permutation:
 
 def make_permutation_dataset(n: int):
     mult_table = []
-    perms
+    perms = []
     index = {}
     for i, seq in enumerate(permutations(list(range(n)))):
         p = Permutation(seq)
         perms.append(p)
-        index[p] = i
+        index[p.sigma] = i
     for perm1, perm2 in product(perms, repeat=2):
         q = perm1(perm2)
         mult_table.append((index[perm1.sigma], index[perm2.sigma], index[q.sigma]))

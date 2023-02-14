@@ -2,7 +2,7 @@
 n = 5
 frac_train = 0.4
 batch_size = 16384
-num_epochs = 50_000
+num_epochs = 50000
 grok_threshold = 0.00001
 checkpoint_every = 100
 device = 'cuda'
@@ -17,6 +17,6 @@ tie_lr = false
 
 [optimizer]
 lr = 1e-3
-wd = 1.
+wd = 1.0
 betas = [0.9, 0.98]
 

@@ -29,11 +29,11 @@ def get_dataloaders(n: int, frac_train: float, batch_size: int, device):
     lperms, rperms, labels = make_dataset(n, device)
     indices = torch.randperm(group_order**2)
     assert len(indices) == len(lperms)
-    cutoff = int(n**2) * frac_train
+    cutoff = int(group_order**2 * frac_train)
     train_indices = indices[:cutoff]
     test_indices = indices[cutoff:]
-    train_data = TensorDataset(lperms[train_indices], rperms[train_indices], labels[train_indices])
-    test_data = TensorDataset(lperms[test_indices],  rperms[test_indices], labels[test_indices])
+    train_data = TensorDataset(lperms[train_indices].squeeze(), rperms[train_indices].squeeze(), labels[train_indices].squeeze())
+    test_data = TensorDataset(lperms[test_indices].squeeze(),  rperms[test_indices].squeeze(), labels[test_indices].squeeze())
     train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     test_dataloader = DataLoader(test_data, batch_size=batch_size)
     return train_dataloader, test_dataloader
@@ -50,8 +50,8 @@ def loss_fn(logits, labels):
 
 def train_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda', requires_grad=False)
-    for batch, labels in dataloader:
-        logits = model(batch)
+    for x, y, labels in dataloader:
+        logits = model(x, y)
         loss = loss_fn(logits, labels)
         loss.backward()
         total_loss += loss
@@ -60,8 +60,8 @@ def train_forward(model, dataloader):
 
 def test_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda', requires_grad=False)
-    for batch, labels in dataloader:
-        logits = model(batch)
+    for x, y, labels in dataloader:
+        logits = model(x, y)
         loss = loss_fn(logits, labels)
         total_loss += loss
     return total_loss
@@ -106,7 +106,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, checkpoint_every,
                     "config": model.cfg,
                     "rng": torch.get_rng_state()
                 },
-                f'checkpoints/xy33/{epoch}.pth'
+                f'checkpoints/s5_40/{epoch}.pth'
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
@@ -121,7 +121,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, checkpoint_every,
          "test_losses": test_losses,
          "train_losses": train_losses
      },
-     "grokking_sn5_40_full_run.pth")
+     "grokking_s5_40_full_run.pth")
 
 def main():
     args = parse_arguments()
