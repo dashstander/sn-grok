@@ -1,6 +1,7 @@
 [train]
 n = 5
-frac_train = 0.5
+frac_train = 0.4
+batch_size = 16384
 num_epochs = 50_000
 grok_threshold = 0.00001
 checkpoint_every = 100
@@ -10,6 +11,7 @@ seed = 999
 [model]
 embed_dim = 256
 model_dim = 128
+vocab_size = 120
 tie_lr = false
 
 

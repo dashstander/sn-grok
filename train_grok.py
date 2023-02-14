@@ -1,15 +1,21 @@
+import argparse
+from confection import Config
 import copy
-import einops
 import math
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-#from torch.nn.functional import cosine_similarity
 import tqdm.auto as tqdm
-# from transformer_lens import HookedTransformer, HookedTransformerConfig
 import wandb
 
 from sngrok.permutations import Permutation, make_permutation_dataset
-from sngrok.models import SnMLP
+from sngrok.model import SnMLP
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, help='Path to TOML config file')
+    args, _ = parser.parse_known_args()
+    return args
 
 
 def make_dataset(n: int, device):
@@ -23,11 +29,11 @@ def get_dataloaders(n: int, frac_train: float, batch_size: int, device):
     lperms, rperms, labels = make_dataset(n, device)
     indices = torch.randperm(group_order**2)
     assert len(indices) == len(lperms)
-    cutoff = int((p**2) * frac_train)
+    cutoff = int(n**2) * frac_train
     train_indices = indices[:cutoff]
     test_indices = indices[cutoff:]
     train_data = TensorDataset(lperms[train_indices], rperms[train_indices], labels[train_indices])
-    test_data = TensorDataset(dataset[test_indices],  rperms[test_indices], labels[test_indices])
+    test_data = TensorDataset(lperms[test_indices],  rperms[test_indices], labels[test_indices])
     train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     test_dataloader = DataLoader(test_data, batch_size=batch_size)
     return train_dataloader, test_dataloader
@@ -73,28 +79,19 @@ def train(model, optimizer, train_dataloader, test_dataloader, checkpoint_every,
         np_train = train_loss.item()
         train_losses.append(np_train)
 
-        train_grads = get_grads(model)
-
         optimizer.step()
         optimizer.zero_grad()
 
-        
         test_loss = test_forward(model, test_dataloader)
         np_test = test_loss.item()
         test_losses.append(np_test)
 
-        test_grads = get_grads(model)
         optimizer.zero_grad()
         for param in model.parameters():
             if param.requires_grad:
                 param.grad = None
 
-        similarity, full_grads = grad_similarity(train_grads, test_grads)
-
-        similarity = {f'gradient_alignment/{n}': sim for n, sim in similarity.items()}
-        
         msg = {'loss/train': np_train, 'loss/test': np_test}
-        msg.update(similarity)
 
         wandb.log(msg)
 
@@ -113,8 +110,6 @@ def train(model, optimizer, train_dataloader, test_dataloader, checkpoint_every,
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
-            #print(f"Epoch {epoch} Train Loss {np_train} Test Loss {np_test}")
-
         if test_loss.item() <= grok_threshold:
             break
     torch.save(
@@ -126,37 +121,46 @@ def train(model, optimizer, train_dataloader, test_dataloader, checkpoint_every,
          "test_losses": test_losses,
          "train_losses": train_losses
      },
-     "grokking_xy_33_full_run.pth")
+     "grokking_sn5_40_full_run.pth")
 
 def main():
-    
-    model = HookedTransformer(cfg)
+    args = parse_arguments()
+    config = Config().from_disk(args.config)
+    device = torch.device('cuda')
+    model = SnMLP(config['model']).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=lr,
-        weight_decay=wd,
-        betas=betas
+        lr=config['optimizer']['lr'],
+        weight_decay=config['optimizer']['wd'],
+        betas=config['optimizer']['betas']
     )
 
     wandb.init(
         entity="dstander",
         project="grokking_sn",
         group="S5_basic",
-        config=cfg.to_dict()
+        config=config
     )
 
-    #wandb.watch(model, log_freq=100)
+    wandb.watch(model, log_freq=100)
 
-    train_data, test_data = get_dataloaders(p, frac_train, batch_size, device)
+    train_config = config['train']
+
+    train_data, test_data = get_dataloaders(
+        train_config['n'],
+        train_config['frac_train'],
+        train_config['batch_size'],
+        device
+    )
 
     train(
         model,
         optimizer,
         train_data,
         test_data,
-        checkpoint_every,
-        num_epochs,
-        grok_threshold
+        train_config['checkpoint_every'],
+        train_config['num_epochs'],
+        train_config['grok_threshold']
     )
 
 
