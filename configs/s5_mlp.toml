@@ -2,7 +2,7 @@
 n = 5
 frac_train = 0.4
 batch_size = 16384
-num_epochs = 50000
+num_epochs = 500000
 grok_threshold = 0.00001
 checkpoint_every = 100
 device = 'cuda'
