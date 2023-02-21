@@ -159,7 +159,7 @@ def main():
         config=config
     )
 
-    wandb.watch(model, log_freq=100)
+    wandb.watch(model, log='all', log_freq=100)
 
     train_config = config['train']
 
