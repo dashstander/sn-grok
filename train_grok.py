@@ -11,6 +11,19 @@ from sngrok.permutations import Permutation, make_permutation_dataset
 from sngrok.model import SnMLP
 
 
+def set_seeds(seed):
+    torch.manual_seed(seed)
+
+
+def calculate_checkpoint_epochs(config):
+    extra_checkpoints = config.get('extra_checkpoints', [])
+    num_epochs = config['num_epochs']
+    checkpoint_every = config['checkpoint_every']
+    main_checkpoints = list(range(0, num_epochs, checkpoint_every))
+    return sorted(extra_checkpoints + main_checkpoints)
+
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, help='Path to TOML config file')
@@ -67,12 +80,14 @@ def test_forward(model, dataloader):
     return total_loss
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, checkpoint_every, num_epochs, grok_threshold):
+def train(model, optimizer, train_dataloader, test_dataloader, config):
+    num_epochs = config['num_epochs']
+    grok_threshold = config['grok_threshold']
+    checkpoint_epochs = calculate_checkpoint_epochs(config)
     train_losses = []
     test_losses = []
     model_checkpoints = []
     opt_checkpoints = []
-    checkpoint_epochs = []
 
     for epoch in tqdm.tqdm(range(num_epochs)):
         train_loss = train_forward(model, train_dataloader)
@@ -95,8 +110,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, checkpoint_every,
 
         wandb.log(msg)
 
-        if (epoch % checkpoint_every) == 0:
-            checkpoint_epochs.append(epoch)
+        if epoch in checkpoint_epochs:
             model_state = copy.deepcopy(model.state_dict())
             opt_state = copy.deepcopy(optimizer.state_dict())
             torch.save(
@@ -126,7 +140,10 @@ def train(model, optimizer, train_dataloader, test_dataloader, checkpoint_every,
 def main():
     args = parse_arguments()
     config = Config().from_disk(args.config)
+
     device = torch.device('cuda')
+    torch.manual_seed(config['train']['seed'])
+    
     model = SnMLP(config['model']).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -158,9 +175,7 @@ def main():
         optimizer,
         train_data,
         test_data,
-        train_config['checkpoint_every'],
-        train_config['num_epochs'],
-        train_config['grok_threshold']
+        train_config
     )
 
 

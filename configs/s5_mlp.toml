@@ -3,8 +3,8 @@ n = 5
 frac_train = 0.4
 batch_size = 16384
 num_epochs = 500000
-grok_threshold = 0.00001
-checkpoint_every = 100
+grok_threshold = 0.000001
+checkpoint_every = 1000
 device = 'cuda'
 seed = 999
 
