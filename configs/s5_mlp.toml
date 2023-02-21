@@ -5,6 +5,7 @@ batch_size = 16384
 num_epochs = 500000
 grok_threshold = 0.000001
 checkpoint_every = 1000
+extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512]
 device = 'cuda'
 seed = 999
 
