@@ -143,8 +143,8 @@ def main():
 
     device = torch.device('cuda')
     torch.manual_seed(config['train']['seed'])
-    
-    model = SnMLP(config['model']).to(device)
+
+    model = SnMLP.from_config(config['model']).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config['optimizer']['lr'],
