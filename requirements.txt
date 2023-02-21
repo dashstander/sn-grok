@@ -1,5 +1,6 @@
 accelerate
 confection
+git+https://github.com/dashstander/TransformerLens
 polars
 tqdm
 wandb
