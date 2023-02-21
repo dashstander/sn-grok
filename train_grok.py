@@ -117,7 +117,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
                 {
                     "model": model_state,
                     "optimizer": opt_state,
-                    "config": model.cfg,
+                    "config": config,
                     "rng": torch.get_rng_state()
                 },
                 f'checkpoints/s5_40/{epoch}.pth'
@@ -129,7 +129,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
     torch.save(
      {
          "model":model.state_dict(),
-         "config": model.cfg,
+         "config": config,
          "checkpoints": model_checkpoints,
          "checkpoint_epochs": checkpoint_epochs,
          "test_losses": test_losses,
