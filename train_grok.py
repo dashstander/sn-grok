@@ -81,9 +81,10 @@ def test_forward(model, dataloader):
 
 
 def train(model, optimizer, train_dataloader, test_dataloader, config):
-    num_epochs = config['num_epochs']
-    grok_threshold = config['grok_threshold']
-    checkpoint_epochs = calculate_checkpoint_epochs(config)
+    train_config = config['train']
+    num_epochs = train_config['num_epochs']
+    grok_threshold = train_config['grok_threshold']
+    checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     train_losses = []
     test_losses = []
     model_checkpoints = []
@@ -117,10 +118,10 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
                 {
                     "model": model_state,
                     "optimizer": opt_state,
-                    "config": config,
+                    "config": config['model'],
                     "rng": torch.get_rng_state()
                 },
-                f'checkpoints/s5_40/{epoch}.pth'
+                f'checkpoints/s5_40_01/{epoch}.pth'
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
@@ -128,14 +129,14 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             break
     torch.save(
      {
-         "model":model.state_dict(),
-         "config": config,
+         "model": model.state_dict(),
+         "config": config['model'],
          "checkpoints": model_checkpoints,
          "checkpoint_epochs": checkpoint_epochs,
          "test_losses": test_losses,
          "train_losses": train_losses
      },
-     "grokking_s5_40_full_run.pth")
+     "grokking_s5_40_01_full_run.pth")
 
 def main():
     args = parse_arguments()
@@ -175,7 +176,7 @@ def main():
         optimizer,
         train_data,
         test_data,
-        train_config
+        config
     )
 
 
