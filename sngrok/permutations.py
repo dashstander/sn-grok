@@ -1,7 +1,9 @@
+from functools import total_ordering
 from itertools import permutations, product
 import polars as pl
 
 
+@total_ordering
 class Permutation:
     
     def __init__(self, sigma):
@@ -9,11 +11,35 @@ class Permutation:
         self.base = list(range(len(sigma)))
         self._cycle_rep = None
     
+    def __repr__(self):
+        return f'Permutation {list(self.sigma)}'
+    
     def __len__(self):
         return len(self.sigma)
 
     def __hash__(self):
         return hash(self.sigma)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Permutation):
+            return False
+        return self.sigma == other.sigma
+
+    def __lt__(self, other):
+        if not isinstance(other, Permutation):
+            raise ValueError('Can only compare against another permutation')
+        elif self.parity != other.parity:
+            return self.parity < other.parity
+        else:
+            return self.sigma < other.sigma
+    
+    def __gt__(self, other):
+        if not isinstance(other, Permutation):
+            raise ValueError('Can only compare against another permutation')
+        elif self.parity != other.parity:
+            return self.parity > other.parity
+        else:
+            return self.sigma > other.sigma
     
     def __call__(self, x):
         if len(x) != len(self):
@@ -44,29 +70,37 @@ class Permutation:
             self._cycle_rep = cycles
         return self._cycle_rep
     
-    def congruency_class(self):
-        cycle_lens = [len(c) for c in self.cycle_rep]
-        return tuple(sorted(cycle_lens))
-    
     @property
     def parity(self):
         odd_cycles = [c for c in self.cycle_rep if (len(c) % 2 == 0)]
         return len(odd_cycles) % 2
+    
+    @property
+    def congruency_class(self):
+        cycle_lens = [len(c) for c in self.cycle_rep]
+        return tuple(sorted(cycle_lens))
 
+    def data(self):
+        return {
+            'permutation': self.sigma,
+            'cycle_rep': self.cycle_rep,
+            'congruency_class': self.congruency_class,
+            'parity': self.parity
+        }
 
 def make_permutation_dataset(n: int):
     mult_table = []
     perms = []
     index = {}
-    for i, seq in enumerate(permutations(list(range(n)))):
-        p = Permutation(seq)
-        perms.append(p)
+    data = []
+    perms = [Permutation(seq) for seq in permutations(list(range(n)))]
+    perms = sorted(perms)
+    for i, p in enumerate(perms):
         index[p.sigma] = i
+        data.append(p.data())
     for perm1, perm2 in product(perms, repeat=2):
         q = perm1(perm2)
         mult_table.append((index[perm1.sigma], index[perm2.sigma], index[q.sigma]))
-    return perms, mult_table
+    perm_df = pl.DataFrame(data).with_row_count(name='index')
+    return perm_df, mult_table
     
-
-
-

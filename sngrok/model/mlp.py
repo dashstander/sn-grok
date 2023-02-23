@@ -14,7 +14,7 @@ class SnMLP(HookedRootModule):
         self.lembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
         self.rembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
         self.linear = nn.Linear(in_features=(2 * self.embed_dim), out_features=self.model_dim, bias=False)
-        self.unembed = nn.Linear(in_features=self.model_dim, out_features=self.vocab_size, bias=False)
+        self.unembed = nn.Linear(in_features=self.model_dim, out_features=self.vocab_size)
         self.hook_lembed = HookPoint()
         self.hook_rembed = HookPoint()
         self.hook_linear = HookPoint()
