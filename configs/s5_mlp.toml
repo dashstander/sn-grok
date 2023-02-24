@@ -21,3 +21,9 @@ lr = 1e-3
 wd = 1.0
 betas = [0.9, 0.98]
 
+
+[wandb]
+entity= 'dstander'
+project = 'grokking_sn'
+group = 'S5_basic'
+

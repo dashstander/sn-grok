@@ -1,18 +1,28 @@
 import argparse
 from confection import Config
 import copy
-import math
+import numpy as np
+import polars as pl
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import tqdm.auto as tqdm
 import wandb
 
-from sngrok.permutations import Permutation, make_permutation_dataset
+from sngrok.permutations import make_permutation_dataset
 from sngrok.model import SnMLP
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, help='Path to TOML config file')
+    args, _ = parser.parse_known_args()
+    return args
+
+
 def set_seeds(seed):
+    np_rng = np.random.default_rng(seed)
     torch.manual_seed(seed)
+    return np_rng
 
 
 def calculate_checkpoint_epochs(config):
@@ -23,33 +33,33 @@ def calculate_checkpoint_epochs(config):
     return sorted(extra_checkpoints + main_checkpoints)
 
 
-
-def parse_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, help='Path to TOML config file')
-    args, _ = parser.parse_known_args()
-    return args
-
-
-def make_dataset(n: int, device):
-    _, mul_table = make_permutation_dataset(n)
-    all_data = torch.tensor(mul_table, device=device)
-    return torch.hsplit(all_data, 3)
+def train_test_split(df, frac_train, rng):
+    group_order = df.shape[0]
+    num_train_samples = int(group_order * frac_train)
+    zeroes = pl.zeros(group_order, dtype=pl.UInt8)
+    train_split = rng.choice(group_order, num_train_samples, replace=False)
+    zeroes[train_split] = 1
+    return df.with_column(zeroes.alias('in_train'))
 
 
-def get_dataloaders(n: int, frac_train: float, batch_size: int, device):
-    group_order = math.factorial(n)
-    lperms, rperms, labels = make_dataset(n, device)
-    indices = torch.randperm(group_order**2)
-    assert len(indices) == len(lperms)
-    cutoff = int(group_order**2 * frac_train)
-    train_indices = indices[:cutoff]
-    test_indices = indices[cutoff:]
-    train_data = TensorDataset(lperms[train_indices].squeeze(), rperms[train_indices].squeeze(), labels[train_indices].squeeze())
-    test_data = TensorDataset(lperms[test_indices].squeeze(),  rperms[test_indices].squeeze(), labels[test_indices].squeeze())
-    train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+def get_dataloaders(config, rng, device):
+    n, frac_train, batch_size = config['n'], config['frac_train'], config['batch_size']
+    _, sn_mult_table = make_permutation_dataset(n)
+    sn_mult_table = train_test_split(sn_mult_table, frac_train, rng)
+    sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
+    train_lperms, train_rperms, train_targets = torch.as_tensor(
+        sn_split[1].select(['index', 'index_right', 'result_index']).to_numpy(),
+        device=device
+    ).hsplit(3)
+    test_lperms, test_rperms, test_targets = torch.as_tensor(
+        sn_split[0].select(['index', 'index_right', 'result_index']).to_numpy(),
+        device=device
+    ).hsplit(3)
+    train_data = TensorDataset(train_lperms, train_rperms, train_targets)
+    test_data = TensorDataset(test_lperms, test_rperms,test_targets)    
+    train_dataloader = DataLoader(train_data, batch_size=batch_size)
     test_dataloader = DataLoader(test_data, batch_size=batch_size)
-    return train_dataloader, test_dataloader
+    return train_dataloader, test_dataloader, sn_mult_table
 
 
 def loss_fn(logits, labels):
@@ -82,15 +92,13 @@ def test_forward(model, dataloader):
 
 def train(model, optimizer, train_dataloader, test_dataloader, config):
     train_config = config['train']
-    num_epochs = train_config['num_epochs']
-    grok_threshold = train_config['grok_threshold']
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     train_losses = []
     test_losses = []
     model_checkpoints = []
     opt_checkpoints = []
 
-    for epoch in tqdm.tqdm(range(num_epochs)):
+    for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
         train_loss = train_forward(model, train_dataloader)
         np_train = train_loss.item()
         train_losses.append(np_train)
@@ -98,15 +106,12 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
         optimizer.step()
         optimizer.zero_grad()
 
-        test_loss = test_forward(model, test_dataloader)
+        with torch.no_grad():
+            test_loss = test_forward(model, test_dataloader)
         np_test = test_loss.item()
         test_losses.append(np_test)
 
         optimizer.zero_grad()
-        for param in model.parameters():
-            if param.requires_grad:
-                param.grad = None
-
         msg = {'loss/train': np_train, 'loss/test': np_test}
 
         wandb.log(msg)
@@ -125,25 +130,34 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
-        if test_loss.item() <= grok_threshold:
+
+        if np_test <= train_config['grok_threshold']:
             break
+
     torch.save(
-     {
-         "model": model.state_dict(),
-         "config": config['model'],
-         "checkpoints": model_checkpoints,
-         "checkpoint_epochs": checkpoint_epochs,
-         "test_losses": test_losses,
-         "train_losses": train_losses
-     },
-     "grokking_s5_40_01_full_run.pth")
+        {
+            "model": model.state_dict(),
+            "config": config['model'],
+            "checkpoints": model_checkpoints,
+            "checkpoint_epochs": checkpoint_epochs,
+            "test_losses": test_losses,
+            "train_losses": train_losses},
+        "grokking_s5_40_01_full_run.pth"
+    )
 
 def main():
     args = parse_arguments()
     config = Config().from_disk(args.config)
 
     device = torch.device('cuda')
-    torch.manual_seed(config['train']['seed'])
+
+    np_rng = set_seeds(config['train']['seed'])
+
+    train_data, test_data, mult_table = get_dataloaders(
+        config['train'],
+        np_rng,
+        device
+    )
 
     model = SnMLP.from_config(config['model']).to(device)
     optimizer = torch.optim.AdamW(
@@ -154,22 +168,10 @@ def main():
     )
 
     wandb.init(
-        entity="dstander",
-        project="grokking_sn",
-        group="S5_basic",
+        **config['wandb'],
         config=config
     )
-
     wandb.watch(model, log='all', log_freq=100)
-
-    train_config = config['train']
-
-    train_data, test_data = get_dataloaders(
-        train_config['n'],
-        train_config['frac_train'],
-        train_config['batch_size'],
-        device
-    )
 
     train(
         model,
@@ -178,6 +180,8 @@ def main():
         test_data,
         config
     )
+
+    wandb.finish()
 
 
 if __name__ == '__main__':

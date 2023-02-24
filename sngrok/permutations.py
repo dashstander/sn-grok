@@ -1,5 +1,5 @@
-from functools import total_ordering
-from itertools import permutations, product
+from functools import partial, total_ordering
+from itertools import permutations
 import polars as pl
 
 
@@ -50,24 +50,26 @@ class Permutation:
             return Permutation(new_sigma)
         else:
             return [x[self.sigma[i]] for i in self.base]
+
+    def _calc_cycle_rep(self):
+        elems = set(self.sigma)
+        cycles = []
+        i = 0
+        while len(elems) > 0:
+            this_cycle = []
+            curr = min(elems)
+            while curr not in this_cycle:
+                this_cycle.append(curr)
+                curr = self.sigma.index(curr)
+            cycles.append(tuple(this_cycle))
+            elems = elems - set(this_cycle)
+            i += 1
+        return sorted(cycles, key = lambda x: (len(x), *x), reverse=True)
     
     @property
     def cycle_rep(self):
         if self._cycle_rep is None:
-            elems = set(self.sigma)
-            base = list(range(len(self)))
-            cycles = []
-            i = 0
-            while len(elems) > 0:
-                this_cycle = []
-                curr = min(elems)
-                while curr not in this_cycle:
-                    this_cycle.append(curr)
-                    curr = base[self.sigma[curr]]
-                cycles.append(this_cycle)
-                elems = elems - set(this_cycle)
-                i += 1
-            self._cycle_rep = cycles
+            self._cycle_rep = self._calc_cycle_rep()
         return self._cycle_rep
     
     @property
@@ -88,19 +90,46 @@ class Permutation:
             'parity': self.parity
         }
 
+
+def get_index(df, result):
+    perm = result.to_list()
+    return (
+        df.filter(
+            pl.col('permutation').apply(lambda x: x.to_list() == perm)
+        ).select('index').item()
+    )
+
+
 def make_permutation_dataset(n: int):
-    mult_table = []
     perms = []
     index = {}
-    data = []
+    one_lines = []
+    cycle_reps = []
+    cong_classes = []
+    parities = []
     perms = [Permutation(seq) for seq in permutations(list(range(n)))]
     perms = sorted(perms)
     for i, p in enumerate(perms):
+        sigma, cycle_rep, cong_class, parity = p.data()
+        one_lines.append(sigma), cycle_reps.append(cycle_rep), cong_classes.append(cong_class), parities.append(parity)
         index[p.sigma] = i
-        data.append(p.data())
-    for perm1, perm2 in product(perms, repeat=2):
-        q = perm1(perm2)
-        mult_table.append((index[perm1.sigma], index[perm2.sigma], index[q.sigma]))
-    perm_df = pl.DataFrame(data).with_row_count(name='index')
-    return perm_df, mult_table
+    perm_df = pl.from_dict({
+        'permutation': one_lines,
+        'cycle_rep': cycle_reps,
+        'congruency_class': cong_classes,
+        'parity': parities
+    }).with_row_count(name='index')
+
+    _match = partial(get_index, perm_df)
+
+    mult_df = perm_df.join(perm_df, on='permutation', how='cross')
+    mult_df = mult_df.with_column(
+        pl.col('permutation_right').arr.take(pl.col('permutation')).alias('result'))
+    mult_df = mult_df.with_column(
+        pl.col('result').apply(_match).alias('result_index')
+    )
+    return perm_df, mult_df
+
+    
+
     
