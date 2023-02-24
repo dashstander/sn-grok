@@ -45,7 +45,7 @@ def train_test_split(df, frac_train, rng):
     zeroes = pl.zeros(group_order, dtype=pl.UInt8)
     train_split = rng.choice(group_order, num_train_samples, replace=False)
     zeroes[train_split] = 1
-    return df.with_column(zeroes.alias('in_train'))
+    return df.with_columns(zeroes.alias('in_train'))
 
 
 def get_subgroup(df, parity):
