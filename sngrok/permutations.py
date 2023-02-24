@@ -83,11 +83,8 @@ class Permutation:
         return tuple(sorted(cycle_lens))
 
     def data(self):
-        return {
-            'permutation': self.sigma,
-            'cycle_rep': self.cycle_rep,
-            'congruency_class': self.congruency_class,
-            'parity': self.parity
+        return ( self.sigma, self.cycle_rep, self.congruency_class,
+            ' self.parity
         }
 
 
@@ -110,8 +107,10 @@ def make_permutation_dataset(n: int):
     perms = [Permutation(seq) for seq in permutations(list(range(n)))]
     perms = sorted(perms)
     for i, p in enumerate(perms):
-        sigma, cycle_rep, cong_class, parity = p.data()
-        one_lines.append(sigma), cycle_reps.append(cycle_rep), cong_classes.append(cong_class), parities.append(parity)
+        one_lines.append(p.sigma)
+        cycle_reps.append(p.cycle_rep)
+        cong_classes.append(p.congruency_class)
+        parities.append(p.parity)
         index[p.sigma] = i
     perm_df = pl.from_dict({
         'permutation': one_lines,
