@@ -2,6 +2,7 @@ import argparse
 from confection import Config
 import copy
 import numpy as np
+from pathlib import Path
 import polars as pl
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -24,6 +25,11 @@ def set_seeds(seed):
     torch.manual_seed(seed)
     return np_rng
 
+def setup_checkpointing(config):
+    base_dir = Path(config['checkpoint_dir'])
+    checkpoint_dir = base_dir / config['run_dir']
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    return checkpoint_dir
 
 def calculate_checkpoint_epochs(config):
     extra_checkpoints = config.get('extra_checkpoints', [])
@@ -109,6 +115,7 @@ def test_forward(model, dataloader):
 
 def train(model, optimizer, train_dataloader, test_dataloader, config):
     train_config = config['train']
+    checkpoint_dir = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     train_losses = []
     test_losses = []
@@ -143,7 +150,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
                     "config": config['model'],
                     "rng": torch.get_rng_state()
                 },
-                f'checkpoints/s5_40_01/{epoch}.pth'
+                checkpoint_dir / f'{epoch}.pth'
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
@@ -159,7 +166,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             "checkpoint_epochs": checkpoint_epochs,
             "test_losses": test_losses,
             "train_losses": train_losses},
-        "grokking_s5_40_01_full_run.pth"
+        checkpoint_dir / "full_run.pth"
     )
 
 def main():
