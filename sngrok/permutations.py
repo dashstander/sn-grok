@@ -82,11 +82,6 @@ class Permutation:
         cycle_lens = [len(c) for c in self.cycle_rep]
         return tuple(sorted(cycle_lens))
 
-    def data(self):
-        return ( self.sigma, self.cycle_rep, self.congruency_class,
-            ' self.parity
-        }
-
 
 def get_index(df, result):
     perm = result.to_list()
