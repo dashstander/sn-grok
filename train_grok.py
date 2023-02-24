@@ -196,14 +196,17 @@ def main():
         config=config
     )
     wandb.watch(model, log='all', log_freq=100)
-
-    train(
-        model,
-        optimizer,
-        train_data,
-        test_data,
-        config
-    )
+    
+    try:
+        train(
+            model,
+            optimizer,
+            train_data,
+            test_data,
+            config
+        )
+    except KeyboardInterrupt:
+        pass
 
     wandb.finish()
 
