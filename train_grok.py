@@ -192,11 +192,13 @@ def main():
     )
 
     wandb.init(
-        **config['wandb'],
+        entity="dstander",
+        project="grokking_sn",
+        group="A5_basic",
         config=config
     )
     wandb.watch(model, log='all', log_freq=100)
-    
+
     try:
         train(
             model,
