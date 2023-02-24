@@ -123,13 +123,9 @@ def make_permutation_dataset(n: int):
     _match = partial(get_index, perm_df)
 
     mult_df = perm_df.join(perm_df, on='permutation', how='cross')
-    mult_df = mult_df.with_column(
+    mult_df = mult_df.with_columns(
         pl.col('permutation_right').arr.take(pl.col('permutation')).alias('result'))
-    mult_df = mult_df.with_column(
+    mult_df = mult_df.with_columns(
         pl.col('result').apply(_match).alias('result_index')
     )
     return perm_df, mult_df
-
-    
-
-    
