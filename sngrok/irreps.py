@@ -1,8 +1,8 @@
+import numpy as np
 import torch
 
 
 class Irrep:
-
     def __init__(self, n: int, partition: tuple[int]):
         pass
 
@@ -23,8 +23,9 @@ class AlternatingRep(Irrep):
         pass
 
 def make_irrep(partition):
-    
-    assert list(partition) == sorted(partition, reverse=True), f'Partition is not sorted in descending order.'
+
+    if list(partition) != sorted(partition, reverse=True):
+        raise ValueError(f'Partition {partition} is not sorted in descending order.')
     
     n = sum(partition)
 
