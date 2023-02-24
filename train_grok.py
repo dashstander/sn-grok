@@ -42,10 +42,27 @@ def train_test_split(df, frac_train, rng):
     return df.with_column(zeroes.alias('in_train'))
 
 
+def get_subgroup(df, parity):
+    if parity == 'all':
+        return df
+    elif parity == 0:
+        return df.filter(
+            (pl.col('parity') == 0) & (pl.col('parity_right') == 0)
+        )
+    elif parity == 1:
+        return df.filter(
+            (pl.col('parity') == 1) | (pl.col('parity_right') == 1)
+        )
+    else:
+        raise ValueError('Parity can only be 0, 1, or "all". Not {parity}')
+
+
 def get_dataloaders(config, rng, device):
-    n, frac_train, batch_size = config['n'], config['frac_train'], config['batch_size']
-    _, sn_mult_table = make_permutation_dataset(n)
+    frac_train = config['frac_train']
+    _, sn_mult_table = make_permutation_dataset(config['n'])
     sn_mult_table = train_test_split(sn_mult_table, frac_train, rng)
+    sn_mult_table = get_subgroup(sn_mult_table, config['parity'])
+
     sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
     train_lperms, train_rperms, train_targets = torch.as_tensor(
         sn_split[1].select(['index', 'index_right', 'result_index']).to_numpy(),
@@ -57,8 +74,8 @@ def get_dataloaders(config, rng, device):
     ).hsplit(3)
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
     test_data = TensorDataset(test_lperms, test_rperms,test_targets)    
-    train_dataloader = DataLoader(train_data, batch_size=batch_size)
-    test_dataloader = DataLoader(test_data, batch_size=batch_size)
+    train_dataloader = DataLoader(train_data, batch_size= config['batch_size'])
+    test_dataloader = DataLoader(test_data, batch_size= config['batch_size'])
     return train_dataloader, test_dataloader, sn_mult_table
 
 
