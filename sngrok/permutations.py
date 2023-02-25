@@ -1,5 +1,5 @@
 from functools import partial, total_ordering
-from itertools import permutations
+from itertools import permutations, product
 import polars as pl
 
 
@@ -123,3 +123,14 @@ def make_permutation_dataset(n: int):
         pl.col('result').apply(_match).alias('result_index')
     )
     return perm_df, mult_df
+
+
+def generate_subgroup():
+    group_size = 0
+    all_perms = set([(1, 0, 3, 2, 4), (1, 2, 0, 3, 4)])
+    while group_size < len(all_perms):
+        group_size = len(perms)
+        perms = [Permutation(p) for p in all_perms]
+        for perm1, perm2 in product(perms, repeat=2):
+            perm3 = perm1(perm2)
+            all_perms.add(perm3.sigma)
