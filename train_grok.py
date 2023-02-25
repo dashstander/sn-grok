@@ -196,7 +196,7 @@ def main():
         #entity="dstander",
         #project="grokking_sn",
         #group="A5_basic",
-        **config['wandb']
+        **config['wandb'],
         config=config
     )
     wandb.watch(model, log='all', log_freq=100)

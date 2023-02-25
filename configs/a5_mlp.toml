@@ -15,7 +15,7 @@ run_dir = "a5_40"
 [model]
 embed_dim = 256
 model_dim = 128
-vocab_size = 120
+vocab_size = 60
 tie_left_right = false
 
 
