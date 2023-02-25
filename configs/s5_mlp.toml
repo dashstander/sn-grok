@@ -3,14 +3,14 @@ n = 5
 frac_train = 0.4
 batch_size = 16384
 num_epochs = 500000
-parity = 'all'
+parity = "all"
 grok_threshold = 0.00001
 checkpoint_every = 1000
 extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512]
-device = 'cuda'
+device = "cuda"
 seed = 314159
-checkpoint_dir = 'checkpoints'
-run_dir = 's5_40'
+checkpoint_dir = "checkpoints"
+run_dir = "s5_40"
 
 [model]
 embed_dim = 256
@@ -26,7 +26,7 @@ betas = [0.9, 0.98]
 
 
 [wandb]
-entity= 'dstander'
-project = 'grokking_sn'
-group = 'S5_basic'
+entity= "dstander"
+project = "grokking_sn"
+group = "S5_basic"
 
