@@ -1,5 +1,8 @@
 import numpy as np
-import torch
+
+
+def enumerate_standard_tableux(partition_shape):
+    base_partition = [[0] * l for l in partition_shape]
 
 
 class Irrep:

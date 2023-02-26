@@ -125,12 +125,13 @@ def make_permutation_dataset(n: int):
     return perm_df, mult_df
 
 
-def generate_subgroup():
+def generate_subgroup(generators: list[tuple[int]]):
     group_size = 0
-    all_perms = set([(1, 0, 3, 2, 4), (1, 2, 0, 3, 4)])
+    all_perms = set(generators)
     while group_size < len(all_perms):
         group_size = len(perms)
         perms = [Permutation(p) for p in all_perms]
         for perm1, perm2 in product(perms, repeat=2):
             perm3 = perm1(perm2)
             all_perms.add(perm3.sigma)
+    return list(all_perms)
