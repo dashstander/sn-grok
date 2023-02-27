@@ -1,4 +1,5 @@
 from copy import deepcopy
+from functools import total_ordering
 from itertools import chain
 
 
@@ -11,6 +12,7 @@ def _check_shape(partition_shape):
             )
 
 
+@total_ordering
 class YoungTableau:
 
     def __init__(self, values: list[list[int]]):
@@ -44,6 +46,19 @@ class YoungTableau:
             if row1 != row2:
                 return False
         return True
+
+    def __lt__(self, other):
+        if not isinstance(other, YoungTableau):
+            other = YoungTableau(other)
+        if (self.n != other.n) or (self.shape != other.shape):
+            raise ValueError('Can only compare two tableau of the same shape')
+        for row1, row2 in zip(self.values, other.values):
+            if row1 == row2:
+                continue
+            for v1, v2 in zip(row1, row2):
+                if v1 == v2:
+                    continue
+                return v1 < v2
 
     def index(self, val):
         for i, row in enumerate(self.values):
