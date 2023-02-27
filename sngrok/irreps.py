@@ -1,34 +1,36 @@
 import numpy as np
+from .permutations import make_permutation_dataset, Permutation
+from .tableau import enumerate_standard_tableau, YoungTableau
 
 
-def enumerate_standard_tableux(partition_shape):
-    base_partition = [[0] * l for l in partition_shape]
-
-
-class Irrep:
+class SnIrrep:
     def __init__(self, n: int, partition: tuple[int]):
-        pass
+        self.n = n
+        self.shape = partition
+        self.basis = enumerate_standard_tableau(partition)
 
 
-class TrivialRep(Irrep):
+class TrivialRep(SnIrrep):
 
     def __init__(self, n):
         pass
 
-class StandardRep(Irrep):
+class StandardRep(SnIrrep):
 
     def __init__(n):
         pass
 
 
-class AlternatingRep(Irrep):
+class AlternatingRep(SnIrrep):
     def __init__(n):
         pass
 
 def make_irrep(partition):
 
     if list(partition) != sorted(partition, reverse=True):
-        raise ValueError(f'Partition {partition} is not sorted in descending order.')
+        raise ValueError(
+            f'Partition {partition} is not sorted in descending order.'
+        )
     
     n = sum(partition)
 
@@ -39,4 +41,4 @@ def make_irrep(partition):
     elif partition == tuple([1] * n):
         return AlternatingRep(n)
     else:
-        return Irrep(n, partition)
+        return SnIrrep(n, partition)
