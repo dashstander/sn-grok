@@ -152,7 +152,8 @@ def main():
     args = parse_arguments()
     config = Config().from_disk(args.config)
 
-    device = torch.device('cuda')
+    accelerator = Accelerator()
+
 
     np_rng = set_seeds(config['train']['seed'])
 
@@ -162,7 +163,7 @@ def main():
         device
     )
 
-    model = SnMLP.from_config(config['model']).to(device)
+    model = SnMLP.from_config(config['model'])
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config['optimizer']['lr'],
@@ -175,6 +176,9 @@ def main():
         config=config
     )
     wandb.watch(model, log='all', log_freq=1000)
+
+
+    model, optimizer, training_dataloader = accelerator.prepare(model, optimizer, training_dataloader)
 
     try:
         train(
