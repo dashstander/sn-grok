@@ -16,7 +16,7 @@ class SnFinetuneMLP(HookedRootModule):
         self.total_vocab_size = total_vocab_size
 
         self.subgroup_mlp = subgroup_mlp
-        self.subgroup_mlp.requires_grad_ = False
+        #self.subgroup_mlp.requires_grad_ = False
 
         self.subgroup_vocab_size = subgroup_mlp.vocab_size
 
