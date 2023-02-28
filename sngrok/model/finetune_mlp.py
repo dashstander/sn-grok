@@ -16,20 +16,17 @@ class SnFinetuneMLP(HookedRootModule):
         self.total_vocab_size = total_vocab_size
 
         self.subgroup_mlp = subgroup_mlp
-
-        for p in self.subgroup_mlp.parameters():
-            p.requires_grad = False
+        self.subgroup_mlp.requires_grad_ = False
 
         self.subgroup_vocab_size = subgroup_mlp.vocab_size
 
-        self.ft_lembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
-        self.ft_rembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
+        self.lembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
+        self.rembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
         self.linear1 = nn.Linear(in_features=(2*self.embed_dim), out_features=self.model_dim, bias=False)
         self.unembed = nn.Linear(in_features=self.model_dim, out_features=self.total_vocab_size)
         self.hook_lembed = HookPoint()
         self.hook_rembed = HookPoint()
         self.hook_linear1 = HookPoint()
-        self.hook_linear2 = HookPoint()
         self.hook_unembed = HookPoint()
         # Gives each module a parameter with its name (relative to this root module)
         # Needed for HookPoints to work
@@ -63,9 +60,10 @@ class SnFinetuneMLP(HookedRootModule):
         reduced_y_idx = torch.remainder(y_idx, self.subgroup_vocab_size)
 
         lsubgroup_embeds = self.subgroup_mlp.lembed(reduced_x_idx[lsubgroup_idx])
-        lnewgroup_embeds = self.ft_lembed(reduced_x_idx[lnewgroup_idx])
+        lnewgroup_embeds = self.lembed(reduced_x_idx[lnewgroup_idx])
+        
         rsubgroup_embeds = self.subgroup_mlp.rembed(reduced_y_idx[rsubgroup_idx])
-        rnewgroup_embeds = self.ft_rembed(reduced_y_idx[rnewgroup_idx])
+        rnewgroup_embeds = self.rembed(reduced_y_idx[rnewgroup_idx])
 
         lembeds.index_add(0, lsubgroup_idx, lsubgroup_embeds)
         lembeds.index_add(0, lnewgroup_idx, lnewgroup_embeds)
