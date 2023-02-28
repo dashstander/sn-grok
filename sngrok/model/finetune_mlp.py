@@ -43,6 +43,8 @@ class SnFinetuneMLP(HookedRootModule):
         return cls(vocab, embed_dim, model_dim, pretrained_model)
 
     def _embedding_index(self, x_idx, y_idx):
+        x_idx = x_idx.squeeze()
+        y_idx = y_idx.squeeze()
         lembeds = torch.zeros((*x_idx.shape, self.embed_dim), device=x_idx.device)
         rembeds = torch.zeros((*y_idx.shape, self.embed_dim), device=y_idx.device)
 
