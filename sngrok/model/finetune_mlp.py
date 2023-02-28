@@ -16,6 +16,10 @@ class SnFinetuneMLP(HookedRootModule):
         self.total_vocab_size = total_vocab_size
 
         self.subgroup_mlp = subgroup_mlp
+
+        for p in self.subgroup_mlp.parameters():
+            p.requires_grad = False
+            
         self.subgroup_vocab_size = subgroup_mlp.vocab_size
 
         self.ft_lembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
