@@ -7,7 +7,7 @@ import tqdm.auto as tqdm
 import wandb
 
 from sngrok.permutations import make_permutation_dataset
-from sngrok.model import SnMLP
+from sngrok.model import SnFinetuneMLP
 from sngrok.utils import (
     calculate_checkpoint_epochs,
     parse_arguments,
@@ -147,6 +147,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
         checkpoint_dir / "full_run.pth"
     )
 
+
 def main():
     args = parse_arguments()
     config = Config().from_disk(args.config)
@@ -155,13 +156,13 @@ def main():
 
     np_rng = set_seeds(config['train']['seed'])
 
-    train_data, test_data, _ = get_dataloaders(
+    train_data, test_data, mult_table = get_dataloaders(
         config['train'],
         np_rng,
         device
     )
 
-    model = SnMLP.from_config(config['model']).to(device)
+    model = SnFinetuneMLP.from_config(config['model']).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config['optimizer']['lr'],

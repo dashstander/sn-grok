@@ -8,15 +8,23 @@ grok_threshold = 0.00001
 checkpoint_every = 1000
 extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512]
 device = "cuda"
-seed = 314159
+seed = 16
 checkpoint_dir = "checkpoints"
-run_dir = "s5_40"
+run_dir = "s5_ft_40"
 
 [model]
 embed_dim = 256
 model_dim = 128
 vocab_size = 120
 tie_lr = false
+
+
+[pretrained_model]
+embed_dim = 256
+model_dim = 128
+vocab_size = 120
+tie_lr = false
+checkpoint_path = "checkpoints/a5_40/"
 
 
 [optimizer]
@@ -28,4 +36,4 @@ betas = [0.9, 0.98]
 [wandb]
 entity= "dstander"
 project = "grokking_sn"
-group = "S5_basic"
+group = "S5_40pcnt_finetune"

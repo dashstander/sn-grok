@@ -37,13 +37,3 @@ class SnMLP(HookedRootModule):
         linear1 = self.hook_linear(self.linear(permrep))
         logits = self.hook_unembed(self.unembed(relu(linear1)))
         return logits
-
-
-class SnFinetuneMLP(HookedRootModule):
-    def __init__(self, config):
-        super().__init__()
-        self.cfg = config
-        self.total_vocab_size = config['vocab_size']
-        self.subgroup_vocab_size = self.total_vocab_size // 2
-        self.embed_dim = config['embed_dim']
-        self.model_dim = config['model_dim']
