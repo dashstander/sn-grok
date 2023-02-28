@@ -162,7 +162,7 @@ def main():
         device
     )
 
-    model = SnFinetuneMLP.from_config(config['model']).to(device)
+    model = SnFinetuneMLP.from_config(config).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config['optimizer']['lr'],
