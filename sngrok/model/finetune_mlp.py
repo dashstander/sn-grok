@@ -35,13 +35,14 @@ class SnFinetuneMLP(HookedRootModule):
     def from_config(cls, config):
         model_config = config['model']
         vocab = model_config['vocab_size']
+        full_vocab = model_config['total_vocab_size']
         embed_dim = model_config['embed_dim']
         model_dim = model_config['model_dim']
         pretrained_model = SnMLP.from_config(config['pretrained_model'])
         full_run = torch.load(config['pretrained_model']['checkpoint_path'])
         weights = full_run['model']
         pretrained_model.load_state_dict(weights)
-        return cls(vocab, embed_dim, model_dim, pretrained_model)
+        return cls(vocab, embed_dim, model_dim, full_vocab, pretrained_model)
 
     def _embedding_index(self, x_idx, y_idx):
         x_idx = x_idx.squeeze()
