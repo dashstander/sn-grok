@@ -57,7 +57,7 @@ class SnFinetuneMLP(HookedRootModule):
         lsubgroup_embeds = self.subgroup_mlp.lembed(reduced_x_idx[lsubgroup_idx])
         lnewgroup_embeds = self.ft_lembed(reduced_x_idx[lnewgroup_idx])
         rsubgroup_embeds = self.subgroup_mlp.rembed(reduced_y_idx[rsubgroup_idx])
-        rnewgroup_embeds = self.ft_rembed.rembed(reduced_y_idx[rnewgroup_idx])
+        rnewgroup_embeds = self.ft_rembed(reduced_y_idx[rnewgroup_idx])
 
         lembeds.index_add(0, lsubgroup_idx, lsubgroup_embeds)
         lembeds.index_add(0, lnewgroup_idx, lnewgroup_embeds)
