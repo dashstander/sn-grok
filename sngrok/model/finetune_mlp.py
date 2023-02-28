@@ -8,11 +8,12 @@ from .mlp import SnMLP
 
 
 class SnFinetuneMLP(HookedRootModule):
-    def __init__(self, vocab_size: int, embed_dim: int, model_dim: int, subgroup_mlp: SnMLP):
+    def __init__(self, vocab_size: int, embed_dim: int, model_dim: int, total_vocab_size: int, subgroup_mlp: SnMLP):
         super().__init__()
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.model_dim = model_dim
+        self.total_vocab_size = total_vocab_size
 
         self.subgroup_mlp = subgroup_mlp
         self.subgroup_vocab_size = subgroup_mlp.vocab_size
@@ -20,7 +21,7 @@ class SnFinetuneMLP(HookedRootModule):
         self.ft_lembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
         self.ft_rembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
         self.linear2 = nn.Linear(in_features=self.model_dim, out_features=self.model_dim, bias=False)
-        self.new_group_unembed = nn.Linear(in_features=self.model_dim, out_features=self.vocab_size)
+        self.new_group_unembed = nn.Linear(in_features=self.model_dim, out_features=self.total_vocab_size)
         self.hook_lembed = HookPoint()
         self.hook_rembed = HookPoint()
         self.hook_linear1 = HookPoint()
@@ -44,7 +45,7 @@ class SnFinetuneMLP(HookedRootModule):
 
     def _embedding_index(self, x_idx, y_idx):
         x_idx = x_idx.squeeze()
-        y_idx = y_idx.squeeze()
+        y_idx = y_idx.sqeeze()
         lembeds = torch.zeros((*x_idx.shape, self.embed_dim), device=x_idx.device)
         rembeds = torch.zeros((*y_idx.shape, self.embed_dim), device=y_idx.device)
 
