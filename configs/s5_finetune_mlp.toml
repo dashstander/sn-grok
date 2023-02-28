@@ -15,16 +15,15 @@ run_dir = "s5_ft_40"
 [model]
 embed_dim = 256
 model_dim = 128
-vocab_size = 120
-tie_lr = false
+vocab_size = 60
+total_vocab_size = 120
 
 
 [pretrained_model]
 embed_dim = 256
 model_dim = 128
-vocab_size = 120
-tie_lr = false
-checkpoint_path = "checkpoints/a5_40/"
+vocab_size = 60
+checkpoint_path = "checkpoints/a5_40/499000.pth"
 
 
 [optimizer]
