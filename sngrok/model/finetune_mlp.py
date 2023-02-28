@@ -19,13 +19,13 @@ class SnFinetuneMLP(HookedRootModule):
 
         for p in self.subgroup_mlp.parameters():
             p.requires_grad = False
-            
+
         self.subgroup_vocab_size = subgroup_mlp.vocab_size
 
         self.ft_lembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
         self.ft_rembed = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embed_dim)
-        self.linear2 = nn.Linear(in_features=self.model_dim, out_features=self.model_dim, bias=False)
-        self.new_group_unembed = nn.Linear(in_features=self.model_dim, out_features=self.total_vocab_size)
+        self.linear1 = nn.Linear(in_features=(2*self.embed_dim), out_features=self.model_dim, bias=False)
+        self.unembed = nn.Linear(in_features=self.model_dim, out_features=self.total_vocab_size)
         self.hook_lembed = HookPoint()
         self.hook_rembed = HookPoint()
         self.hook_linear1 = HookPoint()
@@ -78,8 +78,7 @@ class SnFinetuneMLP(HookedRootModule):
 
     def forward(self, x, y): 
         permrep = self._embedding_index(x, y)
-        linear1 = self.hook_linear1(relu(self.subgroup_mlp.linear(permrep)))
-        linear2 = self.hook_linear2(relu(self.linear2(linear1)))
-        logits = self.hook_unembed(self.new_group_unembed(linear2))
+        linear1 = self.hook_linear1(relu(self.linear1(permrep)))
+        logits = self.hook_unembed(self.unembed(linear1))
         return logits
 
