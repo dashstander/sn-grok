@@ -164,7 +164,7 @@ def main():
 
     model = SnFinetuneMLP.from_config(config).to(device)
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        filter(lambda p: p.requires_grad, model.parameters()),
         lr=config['optimizer']['lr'],
         weight_decay=config['optimizer']['wd'],
         betas=config['optimizer']['betas']
