@@ -37,7 +37,8 @@ class SnFinetuneMLP(HookedRootModule):
         embed_dim = model_config['embed_dim']
         model_dim = model_config['model_dim']
         pretrained_model = SnMLP.from_config(config['pretrained_model'])
-        weights = torch.load(config['pretrained_model']['checkpoint_path'])
+        full_run = torch.load(config['pretrained_model']['checkpoint_path'])
+        weights = full_run['model']
         pretrained_model.load_state_dict(weights)
         return cls(vocab, embed_dim, model_dim, pretrained_model)
 
