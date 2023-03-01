@@ -73,7 +73,7 @@ def loss_fn(logits, labels):
 
 
 def train_forward(model, dataloader):
-    #total_loss = torch.tensor(0., device='cuda', requires_grad=False)
+    total_loss = torch.tensor(0., device='cuda', requires_grad=False)
     per_sample_losses = []
     for x, y, labels in dataloader:
         logits = model(x, y)
@@ -81,18 +81,20 @@ def train_forward(model, dataloader):
         mean_loss = losses.mean()
         accelerator.backward(mean_loss)
         #loss.backward()
-        #total_loss += loss
+        total_loss += mean_loss
         per_sample_losses.append(losses)
-    return torch.concat(per_sample_losses)
+    return mean_loss
 
 
 def test_forward(model, dataloader):
     per_sample_losses = []
+    total_loss = torch.tensor(0., device='cuda', requires_grad=False)
     for x, y, labels in dataloader:
         logits = model(x, y)
         losses = loss_fn(logits, labels)
+        total_loss += losses.mean()
         per_sample_losses.append(losses)
-    return per_sample_losses
+    return total_loss
 
 
 def train(model, optimizer, train_dataloader, test_dataloader, config):
