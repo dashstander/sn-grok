@@ -1,6 +1,6 @@
 from accelerate import Accelerator
 from confection import Config
-import copy
+import numpy as np
 import polars as pl
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -148,11 +148,11 @@ def main():
 
     accelerator = Accelerator()
 
-    #np_rng = set_seeds(config['train']['seed'])
+    np_rng = np.random.default_rng(config['train']['seed'])
 
     train_data, test_data, _ = get_dataloaders(
-        config['train']
-        #np_rng 
+        config['train'],
+        np_rng 
     )
     accelerator.wait_for_everyone()
 
