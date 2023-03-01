@@ -12,9 +12,11 @@ from sngrok.model import SnMLP
 from sngrok.utils import (
     calculate_checkpoint_epochs,
     parse_arguments,
-    set_seeds,
     setup_checkpointing
 )
+
+
+accelerator = Accelerator(log_with="wandb")
 
 
 def train_test_split(df, frac_train, rng):
@@ -41,7 +43,7 @@ def get_subgroup(df, parity):
         raise ValueError('Parity can only be 0, 1, or "all". Not {parity}')
 
 
-def get_dataloaders(config, rng, device):
+def get_dataloaders(config, rng):
     frac_train = config['frac_train']
     _, sn_mult_table = make_permutation_dataset(config['n'])
     sn_mult_table = train_test_split(sn_mult_table, frac_train, rng)
@@ -49,12 +51,10 @@ def get_dataloaders(config, rng, device):
 
     sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
     train_lperms, train_rperms, train_targets = torch.as_tensor(
-        sn_split[1].select(['index', 'index_right', 'result_index']).to_numpy(),
-        device=device
+        sn_split[1].select(['index', 'index_right', 'result_index']).to_numpy()
     ).hsplit(3)
     test_lperms, test_rperms, test_targets = torch.as_tensor(
-        sn_split[0].select(['index', 'index_right', 'result_index']).to_numpy(),
-        device=device
+        sn_split[0].select(['index', 'index_right', 'result_index']).to_numpy()
     ).hsplit(3)
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
     test_data = TensorDataset(test_lperms, test_rperms,test_targets)    
@@ -67,29 +67,32 @@ def loss_fn(logits, labels):
     if len(logits.shape) == 3:
         logits = logits[:, -1]
     logits = logits.to(torch.float64)
-    
     log_probs = logits.log_softmax(dim=-1)
     correct_log_probs = log_probs.gather(dim=-1, index=labels)[:, 0]
-    return -correct_log_probs.mean()
+    return -1. * correct_log_probs
 
 
 def train_forward(model, dataloader):
-    total_loss = torch.tensor(0., device='cuda', requires_grad=False)
+    #total_loss = torch.tensor(0., device='cuda', requires_grad=False)
+    per_sample_losses = []
     for x, y, labels in dataloader:
         logits = model(x, y)
-        loss = loss_fn(logits, labels)
-        loss.backward()
-        total_loss += loss
-    return total_loss
+        losses = loss_fn(logits, labels)
+        mean_loss = losses.mean()
+        accelerator.backward(mean_loss)
+        #loss.backward()
+        #total_loss += loss
+        per_sample_losses.append(losses)
+    return torch.concat(per_sample_losses)
 
 
 def test_forward(model, dataloader):
-    total_loss = torch.tensor(0., device='cuda', requires_grad=False)
+    per_sample_losses = []
     for x, y, labels in dataloader:
         logits = model(x, y)
-        loss = loss_fn(logits, labels)
-        total_loss += loss
-    return total_loss
+        losses = loss_fn(logits, labels)
+        per_sample_losses.append(losses)
+    return per_sample_losses
 
 
 def train(model, optimizer, train_dataloader, test_dataloader, config):
@@ -98,10 +101,11 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     train_losses = []
     test_losses = []
-    model_checkpoints = []
-    opt_checkpoints = []
-
-    for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
+    progress_bar = tqdm.tqdm(
+        range(train_config['num_epochs']),
+        disable=not accelerator.is_local_main_process
+    )
+    for epoch in progress_bar:
         train_loss = train_forward(model, train_dataloader)
         np_train = train_loss.item()
         train_losses.append(np_train)
@@ -117,36 +121,26 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
         optimizer.zero_grad()
         msg = {'loss/train': np_train, 'loss/test': np_test}
 
-        wandb.log(msg)
+        accelerator.log(msg, step=epoch)
 
         if epoch in checkpoint_epochs:
-            model_state = copy.deepcopy(model.state_dict())
-            opt_state = copy.deepcopy(optimizer.state_dict())
-            torch.save(
-                {
-                    "model": model_state,
-                    "optimizer": opt_state,
-                    "config": config['model'],
-                    "rng": torch.get_rng_state()
-                },
-                checkpoint_dir / f'{epoch}.pth'
-            )
-            model_checkpoints.append(model_state)
-            opt_checkpoints.append(opt_state)
+            accelerator.wait_for_everyone()
+            accelerator.save_state(checkpoint_dir)
 
         if np_test <= train_config['grok_threshold']:
             break
-
-    torch.save(
-        {
-            "model": model.state_dict(),
-            "config": config['model'],
-            "checkpoints": model_checkpoints,
-            "checkpoint_epochs": checkpoint_epochs,
-            "test_losses": test_losses,
-            "train_losses": train_losses},
-        checkpoint_dir / "full_run.pth"
-    )
+    
+    if accelerator.is_main_process:
+        model = accelerator.unwrap_model(model)
+        torch.save(
+            {
+                "model": model.state_dict(),
+                "config": config['model'],
+                "test_losses": test_losses,
+                "train_losses": train_losses
+            },
+            checkpoint_dir / "full_run.pth"
+        )
 
 def main():
     args = parse_arguments()
@@ -154,14 +148,13 @@ def main():
 
     accelerator = Accelerator()
 
-
-    np_rng = set_seeds(config['train']['seed'])
+    #np_rng = set_seeds(config['train']['seed'])
 
     train_data, test_data, _ = get_dataloaders(
-        config['train'],
-        np_rng,
-        device
+        config['train']
+        #np_rng 
     )
+    accelerator.wait_for_everyone()
 
     model = SnMLP.from_config(config['model'])
     optimizer = torch.optim.AdamW(
@@ -175,23 +168,27 @@ def main():
         **config['wandb'],
         config=config
     )
-    wandb.watch(model, log='all', log_freq=1000)
+    accelerator.init_trackers(
+        "grokking_sn",
+        config=config,
+        init_kwargs=config['wandb']
+    )
 
-
-    model, optimizer, training_dataloader = accelerator.prepare(model, optimizer, training_dataloader)
+    model, optimizer, training_dataloader = accelerator.prepare(model, optimizer, train_data)
+    testing_dataloader = accelerator.prepare(test_data)
 
     try:
         train(
             model,
             optimizer,
-            train_data,
-            test_data,
+            training_dataloader,
+            testing_dataloader,
             config
         )
     except KeyboardInterrupt:
         pass
 
-    wandb.finish()
+    accelerator.end_training()
 
 
 if __name__ == '__main__':
