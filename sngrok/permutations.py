@@ -109,9 +109,9 @@ class Permutation:
         return len(odd_cycles) % 2
     
     @property
-    def congruency_class(self):
+    def conjugacy_class(self):
         cycle_lens = [len(c) for c in self.cycle_rep]
-        return tuple(sorted(cycle_lens))
+        return tuple(sorted(cycle_lens, reverse=True))
     
     @property
     def inverse(self):
@@ -174,20 +174,20 @@ def make_permutation_dataset(n: int):
     index = {}
     one_lines = []
     cycle_reps = []
-    cong_classes = []
+    conj_classes = []
     parities = []
     perms = [Permutation(seq) for seq in permutations(list(range(n)))]
     perms = sorted(perms)
     for i, p in enumerate(perms):
         one_lines.append(p.sigma)
         cycle_reps.append(p.cycle_rep)
-        cong_classes.append(p.congruency_class)
+        conj_classes.append(p.conjugacy_class)
         parities.append(p.parity)
         index[p.sigma] = i
     perm_df = pl.from_dict({
         'permutation': one_lines,
         'cycle_rep': cycle_reps,
-        'congruency_class': cong_classes,
+        'conjugacy_class': conj_classes,
         'parity': parities
     }).with_row_count(name='index')
 
@@ -197,9 +197,30 @@ def make_permutation_dataset(n: int):
     mult_df = mult_df.with_columns(
         pl.col('permutation_right').arr.take(pl.col('permutation')).alias('result'))
     mult_df = mult_df.with_columns(
-        pl.col('result').apply(_match).alias('result_index')
+        pl.col('result').apply(_match).alias('result_index').cast(pl.UInt32)
     )
-    return perm_df, mult_df
+    mult_df = mult_df.join(
+        perm_df.select(['index', 'conjugacy_class']),
+        left_on='result_index',
+        right_on='index',
+        suffix='_result'
+    )
+    new_schema = {
+        'index': 'index_left',
+        'permutation': 'permutation_left',
+        'cycle_rep': 'cycle_rep_left',
+        'conjugacy_class': 'conjugacy_class_left',
+        'parity': 'parity_left',
+        'index_right': 'index_right',
+        'permutation_right': 'perm_right',
+        'cycle_rep_right': 'cycle_rep_right',
+        'conjugacy_class_right': 'conjugacy_class_right',
+        'parity_right': 'parity_right',
+        'result': 'permutation_target',
+        'result_index': 'index_target',
+        'conjugacy_class_result': 'conjugacy_class_target'
+    }
+    return perm_df, mult_df.rename(new_schema)
 
 
 def generate_subgroup(generators: list[tuple[int]]):
