@@ -149,6 +149,11 @@ def main():
     config = Config().from_disk(args.config)
 
     accelerator = Accelerator()
+    accelerator.init_trackers(
+        "grokking_sn",
+        config=config,
+        init_kwargs={'wandb': config['wandb']}
+    )
 
     np_rng = np.random.default_rng(config['train']['seed'])
 
@@ -166,11 +171,7 @@ def main():
         betas=config['optimizer']['betas']
     )
 
-    accelerator.init_trackers(
-        "grokking_sn",
-        config=config,
-        init_kwargs={'wandb': config['wandb']}
-    )
+    
 
     model, optimizer, training_dataloader = accelerator.prepare(model, optimizer, train_data)
     testing_dataloader = accelerator.prepare(test_data)
