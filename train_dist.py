@@ -166,14 +166,10 @@ def main():
         betas=config['optimizer']['betas']
     )
 
-    wandb.init(
-        **config['wandb'],
-        config=config
-    )
     accelerator.init_trackers(
         "grokking_sn",
         config=config,
-        init_kwargs=config['wandb']
+        init_kwargs={'wandb': config['wandb']}
     )
 
     model, optimizer, training_dataloader = accelerator.prepare(model, optimizer, train_data)
