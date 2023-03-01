@@ -49,10 +49,12 @@ def get_dataloaders(config, rng, device):
     sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
     train_lperms, train_rperms, train_targets = torch.as_tensor(
         sn_split[1].select(['index', 'index_right', 'result_index']).to_numpy(),
+        requires_grad=True,
         device=device
     ).hsplit(3)
     test_lperms, test_rperms, test_targets = torch.as_tensor(
         sn_split[0].select(['index', 'index_right', 'result_index']).to_numpy(),
+        requires_grad=True,
         device=device
     ).hsplit(3)
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
@@ -73,7 +75,7 @@ def loss_fn(logits, labels):
 
 
 def train_forward(model, dataloader):
-    total_loss = torch.tensor(0., device='cuda', requires_grad=False)
+    total_loss = torch.tensor(0., device='cuda', requires_grad=True)
     for x, y, labels in dataloader:
         logits = model(x, y)
         loss = loss_fn(logits, labels)
