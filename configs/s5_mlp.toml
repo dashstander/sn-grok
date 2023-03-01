@@ -26,6 +26,6 @@ betas = [0.9, 0.98]
 
 
 [wandb]
-entity= "dstander"
+entity = "dstander"
+group = "S5_50pcnt_multi"
 project = "grokking_sn"
-group = "S5_basic"

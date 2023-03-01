@@ -148,7 +148,6 @@ def main():
     args = parse_arguments()
     config = Config().from_disk(args.config)
 
-    accelerator = Accelerator()
     accelerator.init_trackers(
         "grokking_sn",
         config=config,
