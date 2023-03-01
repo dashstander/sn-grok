@@ -16,7 +16,7 @@ class SnFinetuneMLP(HookedRootModule):
         self.total_vocab_size = total_vocab_size
 
         self.subgroup_mlp = subgroup_mlp
-        #self.subgroup_mlp.requires_grad_ = False
+        self.subgroup_mlp.requires_grad_ = False
 
         self.subgroup_vocab_size = subgroup_mlp.vocab_size
 
@@ -65,10 +65,10 @@ class SnFinetuneMLP(HookedRootModule):
         rsubgroup_embeds = self.subgroup_mlp.rembed(reduced_y_idx[rsubgroup_idx])
         rnewgroup_embeds = self.rembed(reduced_y_idx[rnewgroup_idx])
 
-        lembeds.index_add(0, lsubgroup_idx, lsubgroup_embeds)
-        lembeds.index_add(0, lnewgroup_idx, lnewgroup_embeds)
-        rembeds.index_add(0, rsubgroup_idx, rsubgroup_embeds)
-        rembeds.index_add(0, rnewgroup_idx, rnewgroup_embeds)
+        lembeds.index_add_(0, lsubgroup_idx, lsubgroup_embeds)
+        lembeds.index_add_(0, lnewgroup_idx, lnewgroup_embeds)
+        rembeds.index_add_(0, rsubgroup_idx, rsubgroup_embeds)
+        rembeds.index_add_(0, rnewgroup_idx, rnewgroup_embeds)
         self.hook_lembed(lembeds)
         self.hook_rembed(rembeds)
 
