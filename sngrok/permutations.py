@@ -197,7 +197,7 @@ def make_permutation_dataset(n: int):
     mult_df = mult_df.with_columns(
         pl.col('permutation_right').arr.take(pl.col('permutation')).alias('result'))
     mult_df = mult_df.with_columns(
-        pl.col('result').apply(_match).alias('result_index').cast(pl.UInt32)
+        pl.col('result').apply(_match).alias('result_index').cast(pl.Int32)
     )
     mult_df = mult_df.join(
         perm_df.select(['index', 'conjugacy_class']),
