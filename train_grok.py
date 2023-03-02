@@ -142,7 +142,7 @@ def conj_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda')
     for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
         logits = model(lperm.to('cuda'), rperm.to('cuda'))
-        losses = loss_fn(logits, target.to('cuda'))
+        losses = loss_fn(logits, target[:, None].to('cuda'))
         total_loss += losses.mean()
         loss_data.append(loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, losses))
     return pl.concat(loss_data)
