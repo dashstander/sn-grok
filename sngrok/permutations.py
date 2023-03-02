@@ -190,6 +190,7 @@ def make_permutation_dataset(n: int):
         'conjugacy_class': conj_classes,
         'parity': parities
     }).with_row_count(name='index')
+    perm_df = perm_df.with_columns(pl.col('index').cast(pl.Int32))
 
     _match = partial(get_index, perm_df)
 
