@@ -57,8 +57,8 @@ def get_dataloaders(config, rng, device):
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
     test_data = TensorDataset(test_lperms, test_rperms,test_targets)
     conj_data = SnDataset(config['n'], sn_split[1])
-    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'], pin_memory=True)
-    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'], pin_memory=True)
+    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
+    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
     conj_dataloader = DataLoader(conj_data, batch_size=config['batch_size'], pin_memory=True)
 
     return train_dataloader, test_dataloader, conj_dataloader
