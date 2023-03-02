@@ -2,7 +2,7 @@ from confection import Config
 import copy
 import polars as pl
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 import tqdm.auto as tqdm
 import wandb
 
@@ -42,17 +42,26 @@ def get_subgroup(df, parity):
         raise ValueError('Parity can only be 0, 1, or "all". Not {parity}')
 
 
-def get_dataloaders(config, rng):
+def get_dataloaders(config, rng, device):
     frac_train = config['frac_train']
     _, sn_mult_table = make_permutation_dataset(config['n'])
     sn_mult_table = train_test_split(sn_mult_table, frac_train, rng)
     sn_mult_table = get_subgroup(sn_mult_table, config['parity'])
     sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
-    train_data = SnDataset(config['n'], sn_split[1])
-    test_data = SnDataset(config['n'], sn_split[0])  
+    train_lperms = torch.as_tensor(sn_split[1].select('index_left').to_numpy(), device=device)
+    train_rperms = torch.as_tensor(sn_split[1].select('index_right').to_numpy(), device=device)
+    train_targets = torch.as_tensor(sn_split[1].select('index_target').to_numpy(), device=device)
+    test_lperms = torch.as_tensor(sn_split[0].select('index_left').to_numpy(), device=device)
+    test_rperms = torch.as_tensor(sn_split[0].select('index_right').to_numpy(), device=device)
+    test_targets = torch.as_tensor(sn_split[0].select('index_target').to_numpy(), device=device)
+    train_data = TensorDataset(train_lperms, train_rperms, train_targets)
+    test_data = TensorDataset(test_lperms, test_rperms,test_targets)
+    conj_data = SnDataset(config['n'], sn_split[1])
     train_dataloader = DataLoader(train_data, batch_size=config['batch_size'], pin_memory=True)
     test_dataloader = DataLoader(test_data, batch_size=config['batch_size'], pin_memory=True)
-    return train_dataloader, test_dataloader, sn_mult_table
+    conj_dataloader = DataLoader(conj_data, batch_size=config['batch_size'], pin_memory=True)
+
+    return train_dataloader, test_dataloader, conj_dataloader
 
 
 def loss_fn(logits, labels):
@@ -110,9 +119,9 @@ def loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, loss):
 
 def train_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda')
-    for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
-        logits = model(lperm.to('cuda'), rperm.to('cuda'))
-        losses = loss_fn(logits, target.to('cuda'))
+    for lperm, rperm, target in dataloader:
+        logits = model(lperm, rperm)
+        losses = loss_fn(logits, target)
         mean_loss = losses.mean()
         mean_loss.backward()
         total_loss += mean_loss
@@ -120,13 +129,11 @@ def train_forward(model, dataloader):
 
 
 def test_forward(model, dataloader):
-    #loss_data = []
     total_loss = torch.tensor(0., device='cuda')
-    for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
-        logits = model(lperm.to('cuda'), rperm.to('cuda'))
-        losses = loss_fn(logits, target.to('cuda'))
+    for lperm, rperm, target in dataloader:
+        logits = model(lperm, rperm)
+        losses = loss_fn(logits, target)
         total_loss += losses.mean()
-        #loss_data.append(loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, losses))
     return total_loss.item()
 
 
@@ -141,7 +148,7 @@ def conj_forward(model, dataloader):
     return pl.concat(loss_data)
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, config):
+def train(model, optimizer, train_dataloader, test_dataloader, conj_dataloader, config):
     train_config = config['train']
     checkpoint_dir, run_data_dir = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
@@ -182,7 +189,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             break
 
         if epoch > 0 and (epoch % 1000 == 0):
-            test_loss_df = conj_forward(model, test_dataloader)
+            with torch.no_grad():
+                test_loss_df = conj_forward(model, conj_dataloader)
             num_vals = test_loss_df.shape[0]
             test_loss_data.append(
                 test_loss_df.with_columns(
@@ -217,7 +225,7 @@ def main():
 
     np_rng = set_seeds(config['train']['seed'])
 
-    train_data, test_data, _ = get_dataloaders(
+    train_data, test_data, conj_data = get_dataloaders(
         config['train'],
         np_rng
     )
@@ -242,6 +250,7 @@ def main():
             optimizer,
             train_data,
             test_data,
+            conj_data,
             config
         )
     except KeyboardInterrupt:
