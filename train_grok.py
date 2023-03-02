@@ -56,7 +56,7 @@ def get_dataloaders(config, rng, device):
     test_targets = torch.as_tensor(sn_split[0].select('index_target').to_numpy(), dtype=torch.int64, device=device)
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
     test_data = TensorDataset(test_lperms, test_rperms,test_targets)
-    conj_data = SnDataset(config['n'], sn_split[1])
+    conj_data = SnDataset(config['n'], sn_split[0])
     train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
     test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
     conj_dataloader = DataLoader(conj_data, batch_size=config['batch_size'], pin_memory=True)
