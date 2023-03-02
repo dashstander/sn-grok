@@ -109,7 +109,6 @@ def loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, loss):
 
 
 def train_forward(model, dataloader):
-    loss_data = []
     total_loss = torch.tensor(0., device='cuda')
     for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
         logits = model(lperm.to('cuda'), rperm.to('cuda'))
@@ -117,11 +116,21 @@ def train_forward(model, dataloader):
         mean_loss = losses.mean()
         mean_loss.backward()
         total_loss += mean_loss
-        loss_data.append(loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, losses))
-    return total_loss.item(), pl.concat(loss_data, how='vertical')
+    return total_loss.item()
 
 
 def test_forward(model, dataloader):
+    #loss_data = []
+    total_loss = torch.tensor(0., device='cuda')
+    for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
+        logits = model(lperm.to('cuda'), rperm.to('cuda'))
+        losses = loss_fn(logits, target.to('cuda'))
+        total_loss += losses.mean()
+        #loss_data.append(loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, losses))
+    return total_loss.item()
+
+
+def conj_forward(model, dataloader):
     loss_data = []
     total_loss = torch.tensor(0., device='cuda')
     for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
@@ -129,7 +138,7 @@ def test_forward(model, dataloader):
         losses = loss_fn(logits, target.to('cuda'))
         total_loss += losses.mean()
         loss_data.append(loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, losses))
-    return total_loss.item(),pl.concat(loss_data, how='vertical')
+    return pl.concat(loss_data)
 
 
 def train(model, optimizer, train_dataloader, test_dataloader, config):
@@ -142,23 +151,17 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
     test_loss_data = []
 
     for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
-        train_loss, _ = train_forward(model, train_dataloader)
+        train_loss = train_forward(model, train_dataloader)
 
         optimizer.step()
         optimizer.zero_grad()
 
         with torch.no_grad():
-            test_loss, test_loss_df = test_forward(model, test_dataloader)
+            test_loss = test_forward(model, test_dataloader)
 
         optimizer.zero_grad()
 
         msg = {'loss/train': train_loss, 'loss/test': test_loss}        
-        num_vals = test_loss_df.shape[0]
-        test_loss_data.append(
-            test_loss_df.with_columns(
-                pl.Series(name='epoch', values=([epoch]*num_vals))
-            )
-        )
 
         if epoch in checkpoint_epochs:
             model_state = copy.deepcopy(model.state_dict())
@@ -179,16 +182,22 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             break
 
         if epoch > 0 and (epoch % 1000 == 0):
+            test_loss_df = conj_forward(model, test_dataloader)
+            num_vals = test_loss_df.shape[0]
+            test_loss_data.append(
+                test_loss_df.with_columns(
+                    pl.Series(name='epoch', values=([epoch]*num_vals))
+                )
+            )
             msg.update(log_conj_class_losses(test_loss_df))
-            run_df = pl.concat(test_loss_data, how='vertical')
-            run_df.write_parquet(run_data_dir / 'losses_{epoch}.parquet')
+            
             test_loss_data = []
         
         wandb.log(msg)
     
     if len(test_loss_data) > 0:
         run_df = pl.concat(test_loss_data, how='vertical')
-        run_df.write_parquet(run_data_dir / 'losses_{epoch}.parquet')
+        run_df.write_parquet(run_data_dir / 'losses.parquet')
 
     torch.save(
         {
