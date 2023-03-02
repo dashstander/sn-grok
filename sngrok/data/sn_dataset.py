@@ -15,17 +15,18 @@ class SnDataset(Dataset):
             [pl.col('^index.*$'), pl.col('^conjugacy.*$')]
         )
         self.index_cols = ['index_left', 'index_right', 'index_target']
-        self.conj_cols = ['conjugacy_class_left', 'conjugacy_class_right', 'conjugacy_class_right']
+        self.conj_cols = ['conjugacy_class_left', 'conjugacy_class_right', 'conjugacy_class_target']
 
     def __len__(self):
         return self.data.shape[0]
     
     def __getitem__(self, index):
         lperm, rperm, target = self.data.select(self.index_cols).row(index)
-        conj_classes = self.data.select(self.conj_cols).row(index)
-        conj_classes = tuple([str(conj) for conj in conj_classes])
+        lconj, rconj, target_conj = self.data.select(self.conj_cols).row(index)
         return (
-            conj_classes,
+            str(lconj),
+            str(rconj),
+            str(target_conj),
             torch.tensor(lperm),
             torch.tensor(rperm),
             torch.tensor(target)
