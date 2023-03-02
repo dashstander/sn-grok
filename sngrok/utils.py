@@ -32,3 +32,7 @@ def calculate_checkpoint_epochs(config):
     checkpoint_every = config['checkpoint_every']
     main_checkpoints = list(range(0, num_epochs, checkpoint_every))
     return sorted(extra_checkpoints + main_checkpoints)
+
+
+def to_numpy(x):
+    return x.detach().cpu().numpy()

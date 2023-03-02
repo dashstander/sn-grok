@@ -13,7 +13,8 @@ from sngrok.utils import (
     calculate_checkpoint_epochs,
     parse_arguments,
     set_seeds,
-    setup_checkpointing
+    setup_checkpointing,
+    to_numpy
 )
 
 
@@ -96,13 +97,13 @@ def log_conj_class_losses(data):
 
 def loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, loss):
     data = {
-        'left_perm': lperm.cpu().numpy(),
-        'right_perm': rperm.cpu().numpy(),
-        'target_perm': target.cpu().numpy(),
+        'left_perm': to_numpy(lperm),
+        'right_perm': to_numpy(rperm),
+        'target_perm': to_numpy(target),
         'left_conj_class': lconj,
         'right_conj_class': rconj,
         'target_conj_class': target_conj,
-        'loss': loss.cpu().numpy()
+        'loss': to_numpy(loss)
     }
     return pl.DataFrame(data)
 
