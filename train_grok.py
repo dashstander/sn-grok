@@ -109,7 +109,7 @@ def loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, loss):
 
 def train_forward(model, dataloader):
     loss_data = []
-    total_loss = torch.tensor(0, device='cuda')
+    total_loss = torch.tensor(0., device='cuda')
     for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
         logits = model(lperm.to('cuda'), rperm.to('cuda'))
         losses = loss_fn(logits, target.to('cuda'))
@@ -122,7 +122,7 @@ def train_forward(model, dataloader):
 
 def test_forward(model, dataloader):
     loss_data = []
-    total_loss = torch.tensor(0, device='cuda')
+    total_loss = torch.tensor(0., device='cuda')
     for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
         logits = model(lperm.to('cuda'), rperm.to('cuda'))
         losses = loss_fn(logits, target.to('cuda'))
