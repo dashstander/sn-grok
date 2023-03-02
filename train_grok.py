@@ -66,30 +66,30 @@ def loss_fn(logits, labels):
 
 
 def log_conj_class_losses(data):
-    left_grouped = data.groupby(['conjugacy_class_left']).agg([pl.col('loss').mean()])
-    right_grouped = data.groupby(['conjugacy_class_right']).agg([pl.col('loss').mean()])
-    target_grouped = data.groupby(['conjugacy_class_right']).agg([pl.col('loss').mean()])
+    left_grouped = data.groupby(['left_conj_class']).agg([pl.col('loss').mean()])
+    right_grouped = data.groupby(['right_conj_class']).agg([pl.col('loss').mean()])
+    target_grouped = data.groupby(['target_conj_class']).agg([pl.col('loss').mean()])
     full_grouped = data.groupby(
-        ['conjugacy_class_left', 'conjugacy_class_right', 'conjugacy_class_target']
+        ['left_conj_class', 'right_conj_class', 'target_conj_class']
     ).agg([pl.col('loss').mean()])
 
     msg = {}
     for record in left_grouped.to_dicts():
-        name = f'left_class/{record["conjugacy_class_left"]}'
+        name = f'left_class/{record["left_conj_class"]}'
         msg[name] = record['loss']
     
     for record in right_grouped.to_dicts():
-        name = f'right_class/{record["conjugacy_class_right"]}'
+        name = f'right_class/{record["right_conj_class"]}'
         msg[name] = record['loss']
 
     for record in target_grouped.to_dicts():
-        name = f'target_class/{record["conjugacy_class_target"]}'
+        name = f'target_class/{record["target_conj_class"]}'
         msg[name] = record['loss']
     
     for record in full_grouped.to_dicts():
-        lconj = record['conjugacy_class_left']
-        rconj = record['conjugacy_class_right']
-        tconj = record['conjugacy_class_target']
+        lconj = record['left_conj_class']
+        rconj = record['right_conj_class']
+        tconj = record['target_conj_class']
         name = f'conj_class/{lconj}x{rconj}->{tconj}'
         msg[name] = record['loss']
     return msg
