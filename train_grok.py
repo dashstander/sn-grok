@@ -50,8 +50,8 @@ def get_dataloaders(config, rng):
     sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
     train_data = SnDataset(config['n'], sn_split[1])
     test_data = SnDataset(config['n'], sn_split[0])  
-    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
-    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
+    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'], pin_memory=True)
+    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'], pin_memory=True)
     return train_dataloader, test_dataloader, sn_mult_table
 
 
