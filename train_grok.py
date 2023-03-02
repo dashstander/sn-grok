@@ -151,10 +151,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             test_loss, test_loss_df = test_forward(model, test_dataloader)
 
         optimizer.zero_grad()
-        msg = {'loss/train': train_loss, 'loss/test': test_loss}
-        msg.update(log_conj_class_losses(test_loss_df))
 
-        wandb.log(msg)
+        msg = {'loss/train': train_loss, 'loss/test': test_loss}        
         num_vals = test_loss_df.shape[0]
         test_loss_data.append(
             test_loss_df.with_columns(
@@ -181,9 +179,12 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             break
 
         if epoch > 0 and (epoch % 1000 == 0):
+            msg.update(log_conj_class_losses(test_loss_df))
             run_df = pl.concat(test_loss_data, how='vertical')
             run_df.write_parquet(run_data_dir / 'losses_{epoch}.parquet')
             test_loss_data = []
+        
+        wandb.log(msg)
     
     if len(test_loss_data) > 0:
         run_df = pl.concat(test_loss_data, how='vertical')
