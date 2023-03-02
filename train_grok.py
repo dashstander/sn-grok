@@ -96,13 +96,13 @@ def log_conj_class_losses(data):
 
 def loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, loss):
     data = {
-        'left_perm': lperm.detach().to_numpy(),
-        'right_perm': rperm.detach().to_numpy(),
-        'target_perm': target.detach().to_numpy(),
+        'left_perm': lperm.detach().numpy(),
+        'right_perm': rperm.detach().numpy(),
+        'target_perm': target.detach().numpy(),
         'left_conj_class': lconj,
         'right_conj_class': rconj,
         'target_conj_class': target_conj,
-        'loss': loss.detach().to_numpy()
+        'loss': loss.detach().numpy()
     }
     return pl.DataFrame(data)
 
