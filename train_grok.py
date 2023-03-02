@@ -227,7 +227,8 @@ def main():
 
     train_data, test_data, conj_data = get_dataloaders(
         config['train'],
-        np_rng
+        np_rng,
+        device
     )
 
     model = SnMLP.from_config(config['model']).to(device)
