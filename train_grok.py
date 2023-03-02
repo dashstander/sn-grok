@@ -133,31 +133,33 @@ def test_forward(model, dataloader):
 
 def train(model, optimizer, train_dataloader, test_dataloader, config):
     train_config = config['train']
-    checkpoint_dir = setup_checkpointing(train_config)
+    checkpoint_dir, run_data_dir = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
-    #train_losses = []
-    #test_losses = []
     model_checkpoints = []
     opt_checkpoints = []
 
+    test_loss_data = []
+
     for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
         train_loss, _ = train_forward(model, train_dataloader)
-        #np_train = train_loss.item()
-        #train_losses.append(np_train)
 
         optimizer.step()
         optimizer.zero_grad()
 
         with torch.no_grad():
             test_loss, test_loss_df = test_forward(model, test_dataloader)
-        #np_test = test_loss.item()
-        #test_losses.append(np_test)
 
         optimizer.zero_grad()
         msg = {'loss/train': train_loss, 'loss/test': test_loss}
         msg.update(log_conj_class_losses(test_loss_df))
 
         wandb.log(msg)
+        num_vals = test_loss_df.shape[0]
+        test_loss_data.append(
+            test_loss_df.with_columns(
+                pl.Series(name='epoch', values=([epoch]*num_vals))
+            )
+        )
 
         if epoch in checkpoint_epochs:
             model_state = copy.deepcopy(model.state_dict())
@@ -174,8 +176,17 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
 
-        if np_test <= train_config['grok_threshold']:
+        if test_loss <= train_config['grok_threshold']:
             break
+
+        if epoch > 0 and (epoch % 1000 == 0):
+            run_df = pl.concat(test_loss_data, how='vertical')
+            run_df.write_parquet(run_data_dir / 'losses_{epoch}.parquet')
+            test_loss_data = []
+    
+    if len(test_loss_data) > 0:
+        run_df = pl.concat(test_loss_data, how='vertical')
+        run_df.write_parquet(run_data_dir / 'losses_{epoch}.parquet')
 
     torch.save(
         {
@@ -183,8 +194,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             "config": config['model'],
             "checkpoints": model_checkpoints,
             "checkpoint_epochs": checkpoint_epochs,
-            "test_losses": test_losses,
-            "train_losses": train_losses},
+        },
         checkpoint_dir / "full_run.pth"
     )
 
@@ -198,8 +208,7 @@ def main():
 
     train_data, test_data, _ = get_dataloaders(
         config['train'],
-        np_rng,
-        device
+        np_rng
     )
 
     model = SnMLP.from_config(config['model']).to(device)
