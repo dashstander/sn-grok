@@ -6,13 +6,15 @@ from torch.utils.data import DataLoader, TensorDataset
 import tqdm.auto as tqdm
 import wandb
 
+from sngrok.data import SnDataset
 from sngrok.permutations import make_permutation_dataset
 from sngrok.model import SnMLP
 from sngrok.utils import (
     calculate_checkpoint_epochs,
     parse_arguments,
     set_seeds,
-    setup_checkpointing
+    setup_checkpointing,
+    to_numpy
 )
 
 
@@ -45,23 +47,21 @@ def get_dataloaders(config, rng, device):
     _, sn_mult_table = make_permutation_dataset(config['n'])
     sn_mult_table = train_test_split(sn_mult_table, frac_train, rng)
     sn_mult_table = get_subgroup(sn_mult_table, config['parity'])
-
     sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
-    train_lperms, train_rperms, train_targets = torch.as_tensor(
-        sn_split[1].select(['index', 'index_right', 'result_index']).to_numpy(),
-        requires_grad=True,
-        device=device
-    ).hsplit(3)
-    test_lperms, test_rperms, test_targets = torch.as_tensor(
-        sn_split[0].select(['index', 'index_right', 'result_index']).to_numpy(),
-        requires_grad=True,
-        device=device
-    ).hsplit(3)
+    train_lperms = torch.as_tensor(sn_split[1].select('index_left').to_numpy(), dtype=torch.int64, device=device)
+    train_rperms = torch.as_tensor(sn_split[1].select('index_right').to_numpy(), dtype=torch.int64, device=device)
+    train_targets = torch.as_tensor(sn_split[1].select('index_target').to_numpy(), dtype=torch.int64, device=device)
+    test_lperms = torch.as_tensor(sn_split[0].select('index_left').to_numpy(), dtype=torch.int64, device=device)
+    test_rperms = torch.as_tensor(sn_split[0].select('index_right').to_numpy(), dtype=torch.int64, device=device)
+    test_targets = torch.as_tensor(sn_split[0].select('index_target').to_numpy(), dtype=torch.int64, device=device)
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
-    test_data = TensorDataset(test_lperms, test_rperms,test_targets)    
-    train_dataloader = DataLoader(train_data, batch_size= config['batch_size'])
-    test_dataloader = DataLoader(test_data, batch_size= config['batch_size'])
-    return train_dataloader, test_dataloader, sn_mult_table
+    test_data = TensorDataset(test_lperms, test_rperms,test_targets)
+    conj_data = SnDataset(config['n'], sn_split[0])
+    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
+    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
+    conj_dataloader = DataLoader(conj_data, batch_size=config['batch_size'], pin_memory=True)
+
+    return train_dataloader, test_dataloader, conj_dataloader
 
 
 def loss_fn(logits, labels):
@@ -71,54 +71,104 @@ def loss_fn(logits, labels):
     
     log_probs = logits.log_softmax(dim=-1)
     correct_log_probs = log_probs.gather(dim=-1, index=labels)[:, 0]
-    return -correct_log_probs.mean()
+    return -1. * correct_log_probs
+
+
+def log_conj_class_losses(data):
+    left_grouped = data.groupby(['left_conj_class']).agg([pl.col('loss').mean()])
+    right_grouped = data.groupby(['right_conj_class']).agg([pl.col('loss').mean()])
+    target_grouped = data.groupby(['target_conj_class']).agg([pl.col('loss').mean()])
+    full_grouped = data.groupby(
+        ['left_conj_class', 'right_conj_class', 'target_conj_class']
+    ).agg([pl.col('loss').mean()])
+
+    msg = {}
+    for record in left_grouped.to_dicts():
+        name = f'left_class/{record["left_conj_class"]}'
+        msg[name] = record['loss']
+    
+    for record in right_grouped.to_dicts():
+        name = f'right_class/{record["right_conj_class"]}'
+        msg[name] = record['loss']
+
+    for record in target_grouped.to_dicts():
+        name = f'target_class/{record["target_conj_class"]}'
+        msg[name] = record['loss']
+    
+    for record in full_grouped.to_dicts():
+        lconj = record['left_conj_class']
+        rconj = record['right_conj_class']
+        tconj = record['target_conj_class']
+        name = f'conj_class/{lconj}x{rconj}->{tconj}'
+        msg[name] = record['loss']
+    return msg
+
+
+def loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, loss):
+    data = {
+        'left_perm': to_numpy(lperm),
+        'right_perm': to_numpy(rperm),
+        'target_perm': to_numpy(target),
+        'left_conj_class': lconj,
+        'right_conj_class': rconj,
+        'target_conj_class': target_conj,
+        'loss': to_numpy(loss)
+    }
+    return pl.DataFrame(data)
 
 
 def train_forward(model, dataloader):
-    total_loss = torch.tensor(0., device='cuda', requires_grad=True)
-    for x, y, labels in dataloader:
-        logits = model(x, y)
-        loss = loss_fn(logits, labels)
-        loss.backward()
-        total_loss += loss
-    return total_loss
+    total_loss = torch.tensor(0., device='cuda')
+    for lperm, rperm, target in dataloader:
+        logits = model(lperm, rperm)
+        losses = loss_fn(logits, target)
+        mean_loss = losses.mean()
+        mean_loss.backward()
+        total_loss += mean_loss
+    return total_loss.item()
 
 
 def test_forward(model, dataloader):
-    total_loss = torch.tensor(0., device='cuda', requires_grad=False)
-    for x, y, labels in dataloader:
-        logits = model(x, y)
-        loss = loss_fn(logits, labels)
-        total_loss += loss
-    return total_loss
+    total_loss = torch.tensor(0., device='cuda')
+    for lperm, rperm, target in dataloader:
+        logits = model(lperm, rperm)
+        losses = loss_fn(logits, target)
+        total_loss += losses.mean()
+    return total_loss.item()
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, config):
+def conj_forward(model, dataloader):
+    loss_data = []
+    total_loss = torch.tensor(0., device='cuda')
+    for lconj, rconj, target_conj, lperm, rperm, target in dataloader:
+        logits = model(lperm.to('cuda'), rperm.to('cuda'))
+        losses = loss_fn(logits, target[:, None].to('cuda'))
+        total_loss += losses.mean()
+        loss_data.append(loss_data_df(lconj, rconj, target_conj, lperm, rperm, target, losses))
+    return pl.concat(loss_data)
+
+
+def train(model, optimizer, train_dataloader, test_dataloader, conj_dataloader, config):
     train_config = config['train']
-    checkpoint_dir = setup_checkpointing(train_config)
+    checkpoint_dir, run_data_dir = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
-    train_losses = []
-    test_losses = []
     model_checkpoints = []
     opt_checkpoints = []
 
+    test_loss_data = []
+
     for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
         train_loss = train_forward(model, train_dataloader)
-        np_train = train_loss.item()
-        train_losses.append(np_train)
 
         optimizer.step()
         optimizer.zero_grad()
 
         with torch.no_grad():
             test_loss = test_forward(model, test_dataloader)
-        np_test = test_loss.item()
-        test_losses.append(np_test)
 
         optimizer.zero_grad()
-        msg = {'loss/train': np_train, 'loss/test': np_test}
 
-        wandb.log(msg)
+        msg = {'loss/train': train_loss, 'loss/test': test_loss}        
 
         if epoch in checkpoint_epochs:
             model_state = copy.deepcopy(model.state_dict())
@@ -135,8 +185,27 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
 
-        if np_test <= train_config['grok_threshold']:
+        if test_loss <= train_config['grok_threshold']:
             break
+
+        if epoch > 0 and (epoch % 1000 == 0):
+            with torch.no_grad():
+                test_loss_df = conj_forward(model, conj_dataloader)
+            num_vals = test_loss_df.shape[0]
+            test_loss_data.append(
+                test_loss_df.with_columns(
+                    pl.Series(name='epoch', values=([epoch]*num_vals))
+                )
+            )
+            msg.update(log_conj_class_losses(test_loss_df))
+            
+            test_loss_data = []
+        
+        wandb.log(msg)
+    
+    if len(test_loss_data) > 0:
+        run_df = pl.concat(test_loss_data, how='vertical')
+        run_df.write_parquet(run_data_dir / 'losses.parquet')
 
     torch.save(
         {
@@ -144,8 +213,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             "config": config['model'],
             "checkpoints": model_checkpoints,
             "checkpoint_epochs": checkpoint_epochs,
-            "test_losses": test_losses,
-            "train_losses": train_losses},
+        },
         checkpoint_dir / "full_run.pth"
     )
 
@@ -157,7 +225,7 @@ def main():
 
     np_rng = set_seeds(config['train']['seed'])
 
-    train_data, test_data, _ = get_dataloaders(
+    train_data, test_data, conj_data = get_dataloaders(
         config['train'],
         np_rng,
         device
@@ -183,6 +251,7 @@ def main():
             optimizer,
             train_data,
             test_data,
+            conj_data,
             config
         )
     except KeyboardInterrupt:
