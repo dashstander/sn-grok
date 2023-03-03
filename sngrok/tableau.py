@@ -1,6 +1,5 @@
 from copy import deepcopy
 from functools import total_ordering
-from itertools import chain
 
 
 def _check_shape(partition_shape):
@@ -10,6 +9,48 @@ def _check_shape(partition_shape):
             raise ValueError(
                 f'Partition {partition_shape} is not in decreasing order.'
             )
+
+def _subpartitions(part):
+    assert len(part) >= 2
+    new_parts = []
+    length = len(part)
+    if part[0] == 1:
+        yield part
+    part = list(part)
+    for i in range(len(part) - 1):
+        currval = part[i]
+        nextval = part[i+1]
+        if (currval - nextval) > 1:
+            new_part = deepcopy(part)
+            new_part[i] = currval - 1
+            new_part[i + 1] = nextval + 1
+            new_parts.append(tuple(new_part))
+        if currval > 1 and nextval == 1:
+            new_part = deepcopy(part)
+            new_part[i] = currval - 1
+            new_part.append(1)
+            new_parts.append(tuple(new_part))
+    if part[-1] > 1:
+        new_part = deepcopy(part)
+        lastval = new_part[-1]
+        new_part[-1] = lastval - 1
+        new_part.append(1)
+        new_parts.append(tuple(new_part))
+    for subpart in new_parts:
+        yield subpart
+        for subsub in _subpartitions(subpart):
+            yield subsub
+
+
+def generate_partitions(n):
+    partitions = set()
+    if n == 2:
+        return [(2,), (1, 1)]
+    partitions.add((n,))
+    partitions.add((n-1, 1))
+    for subpart in _subpartitions((n-1, 1)):
+        partitions.add(subpart)
+    return sorted(list(partitions))
 
 
 @total_ordering

@@ -128,7 +128,7 @@ class AlternatingRep(SnIrrep):
     
     @staticmethod
     def _sign(perm):
-        if perm.parity:
+        if perm.parity == 0:
             return 1.
         else:
             return -1.
