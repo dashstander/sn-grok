@@ -1,7 +1,7 @@
 from functools import reduce
 from itertools import combinations, pairwise, permutations
 import numpy as np
-from .permutations import make_permutation_dataset, Permutation
+from .permutations import Permutation
 from .tableau import enumerate_standard_tableau, YoungTableau
 
 
@@ -106,10 +106,15 @@ class TrivialRep(SnIrrep):
 
     def __init__(self, n):
         self.n = n
-        self.permutationss = [
+        self.permutations = [
             Permutation(seq) for seq in permutations(list(range(n)))
         ]
         self.basis = [YoungTableau([list(range(n))])]
+    
+    def matrix_representations(self):
+        return {
+            perm.sigma : 1. for perm in self.permutations
+        }
 
 
 class AlternatingRep(SnIrrep):
@@ -120,17 +125,18 @@ class AlternatingRep(SnIrrep):
         ]
         self.basis = [YoungTableau([[i] for i in range(n)])]
         self.dim = len(self.basis)
-
-
-class StandardRep(SnIrrep):
-
-    def __init__(self, n):
-        self.n = n
-        self.permutations = [
-            Permutation(seq) for seq in permutations(list(range(n)))
-        ]
-        self.basis = enumerate_standard_tableau((n - 1, 1))
-        self.dim = len(self.basis)
+    
+    @staticmethod
+    def _sign(perm):
+        if perm.parity:
+            return 1.
+        else:
+            return -1.
+    
+    def matrix_representations(self):
+        return {
+            perm.sigma : self._sign(perm) for perm in self.permutations
+        }
 
 
 def make_irrep(partition):
@@ -142,9 +148,7 @@ def make_irrep(partition):
     
     n = sum(partition)
 
-    if partition == (n - 1, 1):
-        return StandardRep(n)
-    elif partition == (n):
+    if partition == (n):
         return TrivialRep(n)
     elif partition == tuple([1] * n):
         return AlternatingRep(n)
