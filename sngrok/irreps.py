@@ -1,5 +1,5 @@
 from functools import reduce
-from itertools import combinations, pairwise
+from itertools import combinations, pairwise, permutations
 import numpy as np
 from .permutations import make_permutation_dataset, Permutation
 from .tableau import enumerate_standard_tableau, YoungTableau
@@ -10,6 +10,24 @@ def adj_trans_decomp(i: int, j: int) -> list[tuple[int]]:
     i_to_j = list(range(i+1, j+1))
     adj_to_j = list(pairwise(i_to_j))
     return list(reversed(adj_to_j)) + center + adj_to_j
+
+
+def cycle_to_one_line(cycle_rep):
+    n = sum([len(c) for c in cycle_rep])
+    sigma = [-1] * n
+    for cycle in cycle_rep:
+        first = cycle[0]
+        if len(cycle) == 1:
+            sigma[first] = first
+        else:
+            for val1, val2 in pairwise(cycle):
+                sigma[val2] = val1
+                lastval  = val2
+            sigma[first] = lastval
+    return sigma
+
+        
+
 
 
 class SnIrrep:
@@ -58,25 +76,36 @@ class SnIrrep:
         return matrices
 
 
-    
-
-
-
-
 class TrivialRep(SnIrrep):
 
     def __init__(self, n):
-        pass
-
-class StandardRep(SnIrrep):
-
-    def __init__(n):
-        pass
+        self.n = n
+        self.permutationss = [
+            Permutation(seq) for seq in permutations(list(range(n)))
+        ]
+        self.basis = [YoungTableau([list(range(n))])]
 
 
 class AlternatingRep(SnIrrep):
-    def __init__(n):
-        pass
+    def __init__(self, n):
+        self.n = n
+        self.permutations = [
+            Permutation(seq) for seq in permutations(list(range(n)))
+        ]
+        self.basis = [YoungTableau([[i] for i in range(n)])]
+        self.dim = len(self.basis)
+
+
+class StandardRep(SnIrrep):
+
+    def __init__(self, n):
+        self.n = n
+        self.permutations = [
+            Permutation(seq) for seq in permutations(list(range(n)))
+        ]
+        self.basis = enumerate_standard_tableau((n - 1, 1))
+        self.dim = len(self.basis)
+
 
 def make_irrep(partition):
 
