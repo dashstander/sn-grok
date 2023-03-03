@@ -21,6 +21,14 @@ class Permutation:
     def identity(cls, n: int):
         return cls(list(range(n)))
 
+    @classmethod
+    def transposition(cls, n, i, j):
+        assert i < j and j <= (n - 1)
+        basis = list(range(n))
+        basis[i] = j
+        basis[j] = i
+        return cls(basis)
+
     def is_identity(self):
         ident = tuple(list(range(self.n)))
         return ident == self.sigma
@@ -64,7 +72,14 @@ class Permutation:
             return Permutation(new_sigma)
         elif isinstance(x, YoungTableau):
             # TODO(dashiell): Implement permutations acting on tableau
-            raise NotImplementedError
+            #index_map = {a : x.index(a) for a in self.base}
+            vals = [[-1] * s  for s in x.shape]
+            for j, i in enumerate(self.sigma):
+                #ix, iy = x.index(i)
+                jx, jy = x.index(j)
+                vals[jx][jy] = i
+            return YoungTableau(vals)
+                
         else:
             return [x[self.sigma[i]] for i in self.base]
     
@@ -131,7 +146,7 @@ class Permutation:
         if self._order is not None:
             return self._order
         perm = deepcopy(self)
-        i = 0
+        i = 1
         while not perm.is_identity():
             perm = self * perm
             i += 1
@@ -142,7 +157,7 @@ class Permutation:
         transpositions = []
         for cycle in self.cycle_rep:
             if len(cycle) > 1:
-                transpositions.append(list(pairwise(cycle)))
+                transpositions.extend([tuple(sorted(pair)) for pair in pairwise(cycle)])
         return transpositions
     
     def adjacent_transposition_decomposition(self):

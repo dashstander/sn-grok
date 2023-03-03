@@ -97,9 +97,12 @@ def _fill_unfinished_tableau(tableau, numbers):
         new_tableau[i][j] = val
         new_tableaus.append(new_tableau)
     if len(numbers) == 0:
-        return new_tableaus
+        return [YoungTableau(t) for t in new_tableaus]
     else:
-        return [_fill_unfinished_tableau(t, deepcopy(numbers)) for t in new_tableaus]
+        all_tableaus = []
+        for t in new_tableaus:
+            all_tableaus += _fill_unfinished_tableau(t, deepcopy(numbers))
+        return all_tableaus
 
 
 def enumerate_standard_tableau(partition_shape: tuple[int]) -> list[YoungTableau]:
@@ -110,4 +113,4 @@ def enumerate_standard_tableau(partition_shape: tuple[int]) -> list[YoungTableau
     numbers.reverse()
     base_tableau[0][0] = numbers.pop()
     all_tableaus = _fill_unfinished_tableau(base_tableau, numbers)
-    return [YoungTableau(t) for t in chain(all_tableaus)]
+    return all_tableaus
