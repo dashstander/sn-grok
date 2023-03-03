@@ -21,6 +21,14 @@ class Permutation:
     def identity(cls, n: int):
         return cls(list(range(n)))
 
+    @classmethod
+    def transposition(cls, n, i, j):
+        assert i < j and j <= (n - 1)
+        basis = list(range(n))
+        basis[i] = j
+        basis[j] = i
+        return cls(basis)
+
     def is_identity(self):
         ident = tuple(list(range(self.n)))
         return ident == self.sigma
@@ -64,7 +72,14 @@ class Permutation:
             return Permutation(new_sigma)
         elif isinstance(x, YoungTableau):
             # TODO(dashiell): Implement permutations acting on tableau
-            raise NotImplementedError
+            #index_map = {a : x.index(a) for a in self.base}
+            vals = [[-1] * s  for s in x.shape]
+            for j, i in enumerate(self.sigma):
+                #ix, iy = x.index(i)
+                jx, jy = x.index(j)
+                vals[jx][jy] = i
+            return YoungTableau(vals)
+                
         else:
             return [x[self.sigma[i]] for i in self.base]
     
