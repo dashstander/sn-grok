@@ -146,7 +146,7 @@ class Permutation:
         if self._order is not None:
             return self._order
         perm = deepcopy(self)
-        i = 0
+        i = 1
         while not perm.is_identity():
             perm = self * perm
             i += 1
@@ -157,7 +157,7 @@ class Permutation:
         transpositions = []
         for cycle in self.cycle_rep:
             if len(cycle) > 1:
-                transpositions.append(list(pairwise(cycle)))
+                transpositions.extend([tuple(sorted(pair)) for pair in pairwise(cycle)])
         return transpositions
     
     def adjacent_transposition_decomposition(self):

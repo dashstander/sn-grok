@@ -24,9 +24,14 @@ def cycle_to_one_line(cycle_rep):
                 sigma[val2] = val1
                 lastval  = val2
             sigma[first] = lastval
-    return sigma
+    return tuple(sigma)
 
-        
+
+def trans_to_one_line(i, j, n):
+    sigma = list(range(n))
+    sigma[i] = j
+    sigma[j] = i
+    return tuple(sigma)
 
 
 
@@ -36,7 +41,9 @@ class SnIrrep:
         self.n = n
         self.shape = partition
         self.basis = enumerate_standard_tableau(partition)
-        self.permutations, self.mult_table = make_permutation_dataset(n)
+        self.permutations = [
+            Permutation(seq) for seq in permutations(list(range(n)))
+        ]
         self.dim = len(self.basis)
 
     def adjacent_transpositions(self):
@@ -73,6 +80,25 @@ class SnIrrep:
         for i, j in self.non_adjacent_transpositions():
             decomp = [matrices[pair] for pair in adj_trans_decomp(i, j)]
             matrices[(i, j)] = reduce(lambda x, y: x @ y, decomp)
+        return matrices
+
+    def matrix_representations(self):
+        transpo_matrices = self.generate_transposition_matrices()
+        matrices = {
+            trans_to_one_line(*k, self.n): v for k, v in transpo_matrices.items()
+        }
+        matrices[tuple(range(self.n))] = np.eye(self.dim)
+        for perm in self.permutations:
+            if perm.sigma in matrices:
+                continue
+            else:
+                cycle_mats = [
+                    transpo_matrices[t] for t in perm.transposition_decomposition()
+                ]
+                perm_rep = reduce(lambda x, y: x @ y, cycle_mats)
+                matrices[perm.sigma] = perm_rep
+                if perm.inverse.sigma not in matrices:
+                    matrices[perm.inverse.sigma] = perm_rep.T
         return matrices
 
 
