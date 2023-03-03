@@ -9,6 +9,7 @@ __pycache__/
 wandb/
 .venv/
 checkpoints/
+.DS_Store
 
 # Distribution / packaging
 .Python
