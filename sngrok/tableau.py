@@ -1,5 +1,5 @@
 from copy import deepcopy
-from functools import total_ordering
+from functools import cache, total_ordering
 
 
 def _check_shape(partition_shape):
@@ -13,7 +13,6 @@ def _check_shape(partition_shape):
 def _subpartitions(part):
     assert len(part) >= 2
     new_parts = []
-    length = len(part)
     if part[0] == 1:
         yield part
     part = list(part)
@@ -42,15 +41,30 @@ def _subpartitions(part):
             yield subsub
 
 
+@cache
+def _generate_partitions(n):
+    if n == 3:
+        partitions = [(3,), (2, 1), (1, 1, 1)]
+    elif n == 2:
+        partitions = [(2,), (1, 1)]
+    elif n == 1:
+        partitions = [(1,)]
+    elif n == 0:
+        return ()
+    else:
+        partitions = [(n,)]
+        for k in range(n):
+            m = n - k
+            partitions.extend(
+                tuple(
+                    sorted((m, *p), reverse=True)
+                ) for p in _generate_partitions(k)
+            )
+    return partitions
+
+
 def generate_partitions(n):
-    partitions = set()
-    if n == 2:
-        return [(2,), (1, 1)]
-    partitions.add((n,))
-    partitions.add((n-1, 1))
-    for subpart in _subpartitions((n-1, 1)):
-        partitions.add(subpart)
-    return sorted(list(partitions))
+    return sorted(list(set(_generate_partitions(n))))
 
 
 @total_ordering
@@ -154,4 +168,4 @@ def enumerate_standard_tableau(partition_shape: tuple[int]) -> list[YoungTableau
     numbers.reverse()
     base_tableau[0][0] = numbers.pop()
     all_tableaus = _fill_unfinished_tableau(base_tableau, numbers)
-    return all_tableaus
+    return sorted(all_tableaus)
