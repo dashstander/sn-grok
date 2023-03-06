@@ -1,6 +1,8 @@
 from functools import reduce
 from itertools import combinations, pairwise, permutations
 import numpy as np
+import torch
+
 from .permutations import Permutation
 from .tableau import enumerate_standard_tableau, YoungTableau
 
@@ -41,10 +43,9 @@ class SnIrrep:
         self.n = n
         self.shape = partition
         self.basis = enumerate_standard_tableau(partition)
-        self.permutations = [
-            Permutation(seq) for seq in permutations(list(range(n)))
-        ]
+        self.permutations = Permutation.full_group(n)
         self.dim = len(self.basis)
+        self._matrices = None
 
     def adjacent_transpositions(self):
         return pairwise(range(self.n))
@@ -83,6 +84,8 @@ class SnIrrep:
         return matrices
 
     def matrix_representations(self):
+        if self._matrices is not None:
+            return self._matrices
         transpo_matrices = self.generate_transposition_matrices()
         matrices = {
             trans_to_one_line(*k, self.n): v for k, v in transpo_matrices.items()
@@ -99,7 +102,13 @@ class SnIrrep:
                 matrices[perm.sigma] = perm_rep
                 if perm.inverse.sigma not in matrices:
                     matrices[perm.inverse.sigma] = perm_rep.T
+        self._matrices = matrices
         return matrices
+
+    def matrix_tensor(self):
+        matrices = self.matrix_representations()
+        tensors = [torch.as_array(matrices[perm.sigma]).unsqueeze(0) for perm in self.permutations]
+        return torch.concatenate(tensors, dim=0)
 
 
 class TrivialRep(SnIrrep):
