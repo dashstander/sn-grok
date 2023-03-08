@@ -254,7 +254,7 @@ def make_permutation_dataset(n: int):
     mult_df = mult_df.rename(new_schema)
     mult_df = mult_df.with_columns([
         pl.col('permutation_left').arr.eval(pl.element().cast(str)).arr.join(''),
-        pl.col('perm_right').arr.eval(pl.element().cast(str)).arr.join(''),
+        pl.col('permutation_right').arr.eval(pl.element().cast(str)).arr.join(''),
         pl.col('permutation_target').arr.eval(pl.element().cast(str)).arr.join(''),
         pl.col('conjugacy_class_left').arr.eval(pl.element().cast(str)).arr.join(''),
         pl.col('conjugacy_class_right').arr.eval(pl.element().cast(str)).arr.join(''),
