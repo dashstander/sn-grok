@@ -257,7 +257,6 @@ def main():
             optimizer,
             train_data,
             test_data,
-            conj_data,
             config
         )
     except KeyboardInterrupt:
