@@ -235,6 +235,7 @@ def make_permutation_dataset(n: int):
         right_on='index',
         suffix='_result'
     )
+
     new_schema = {
         'index': 'index_left',
         'permutation': 'permutation_left',
@@ -242,7 +243,7 @@ def make_permutation_dataset(n: int):
         'conjugacy_class': 'conjugacy_class_left',
         'parity': 'parity_left',
         'index_right': 'index_right',
-        'permutation_right': 'perm_right',
+        'permutation_right': 'permutation_right',
         'cycle_rep_right': 'cycle_rep_right',
         'conjugacy_class_right': 'conjugacy_class_right',
         'parity_right': 'parity_right',
@@ -250,7 +251,16 @@ def make_permutation_dataset(n: int):
         'result_index': 'index_target',
         'conjugacy_class_result': 'conjugacy_class_target'
     }
-    return perm_df, mult_df.rename(new_schema)
+    mult_df = mult_df.rename(new_schema)
+    mult_df = mult_df.with_columns([
+        pl.col('permutation_left').arr.eval(pl.element().cast(str)).arr.join(''),
+        pl.col('perm_right').arr.eval(pl.element().cast(str)).arr.join(''),
+        pl.col('permutation_target').arr.eval(pl.element().cast(str)).arr.join(''),
+        pl.col('conjugacy_class_left').arr.eval(pl.element().cast(str)).arr.join(''),
+        pl.col('conjugacy_class_right').arr.eval(pl.element().cast(str)).arr.join(''),
+        pl.col('conjugacy_class_target').arr.eval(pl.element().cast(str)).arr.join('')
+    ])
+    return perm_df, mult_df
 
 
 def generate_subgroup(generators: list[tuple[int]]):
