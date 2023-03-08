@@ -56,12 +56,12 @@ def get_dataloaders(config, rng, device):
     test_targets = torch.as_tensor(sn_split[0].select('index_target').to_numpy(), dtype=torch.int64, device=device)
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
     test_data = TensorDataset(test_lperms, test_rperms,test_targets)
-    conj_data = SnDataset(config['n'], sn_split[0])
+    #conj_data = SnDataset(config['n'], sn_split[0])
     train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
     test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
-    conj_dataloader = DataLoader(conj_data, batch_size=config['batch_size'], pin_memory=True)
+    #conj_dataloader = DataLoader(conj_data, batch_size=config['batch_size'], pin_memory=True)
 
-    return train_dataloader, test_dataloader, conj_dataloader
+    return train_dataloader, test_dataloader, sn_mult_table
 
 
 def loss_fn(logits, labels):
@@ -148,7 +148,7 @@ def conj_forward(model, dataloader):
     return pl.concat(loss_data)
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, conj_dataloader, config):
+def train(model, optimizer, train_dataloader, test_dataloader, config):
     train_config = config['train']
     checkpoint_dir, run_data_dir = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
@@ -187,7 +187,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, conj_dataloader, 
 
         if test_loss <= train_config['grok_threshold']:
             break
-
+        """
         if epoch > 0 and (epoch % 1000 == 0):
             with torch.no_grad():
                 test_loss_df = conj_forward(model, conj_dataloader)
@@ -198,8 +198,9 @@ def train(model, optimizer, train_dataloader, test_dataloader, conj_dataloader, 
                 )
             )
             msg.update(log_conj_class_losses(test_loss_df))
-            
+        
             test_loss_data = []
+        """
         
         wandb.log(msg)
     
@@ -225,11 +226,14 @@ def main():
 
     np_rng = set_seeds(config['train']['seed'])
 
-    train_data, test_data, conj_data = get_dataloaders(
+    train_data, test_data, mult_table = get_dataloaders(
         config['train'],
         np_rng,
         device
     )
+
+    checkpoint_dir, _ = setup_checkpointing(config['train'])
+    mult_table.write_parquet(checkpoint_dir / 'data.parquet')
 
     model = SnMLP.from_config(config['model']).to(device)
     optimizer = torch.optim.AdamW(

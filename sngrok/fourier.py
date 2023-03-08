@@ -6,7 +6,6 @@ from .permutations import Permutation
 from .tableau import generate_partitions
 
 
-
 def _dot(fx, rho):
     return fx * rho
 
