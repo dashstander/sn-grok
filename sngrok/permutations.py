@@ -18,6 +18,12 @@ class Permutation:
         self._order = None
 
     @classmethod
+    def full_group(cls, n: int):
+        return sorted([
+            cls(seq) for seq in permutations(list(range(n)))
+        ])
+
+    @classmethod
     def identity(cls, n: int):
         return cls(list(range(n)))
 
@@ -127,6 +133,14 @@ class Permutation:
     def conjugacy_class(self):
         cycle_lens = [len(c) for c in self.cycle_rep]
         return tuple(sorted(cycle_lens, reverse=True))
+
+    def inverse(self):
+        inv = [-1] * self.n
+        for i, val in enumerate(self.sigma):
+            inv[val] = i
+        return Permutation(inv)
+
+
     
     @property
     def inverse(self):

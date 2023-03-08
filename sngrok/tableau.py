@@ -1,6 +1,5 @@
 from copy import deepcopy
-from functools import total_ordering
-from itertools import chain
+from functools import cache, total_ordering
 
 
 def _check_shape(partition_shape):
@@ -10,6 +9,62 @@ def _check_shape(partition_shape):
             raise ValueError(
                 f'Partition {partition_shape} is not in decreasing order.'
             )
+
+def _subpartitions(part):
+    assert len(part) >= 2
+    new_parts = []
+    if part[0] == 1:
+        yield part
+    part = list(part)
+    for i in range(len(part) - 1):
+        currval = part[i]
+        nextval = part[i+1]
+        if (currval - nextval) > 1:
+            new_part = deepcopy(part)
+            new_part[i] = currval - 1
+            new_part[i + 1] = nextval + 1
+            new_parts.append(tuple(new_part))
+        if currval > 1 and nextval == 1:
+            new_part = deepcopy(part)
+            new_part[i] = currval - 1
+            new_part.append(1)
+            new_parts.append(tuple(new_part))
+    if part[-1] > 1:
+        new_part = deepcopy(part)
+        lastval = new_part[-1]
+        new_part[-1] = lastval - 1
+        new_part.append(1)
+        new_parts.append(tuple(new_part))
+    for subpart in new_parts:
+        yield subpart
+        for subsub in _subpartitions(subpart):
+            yield subsub
+
+
+@cache
+def _generate_partitions(n):
+    if n == 3:
+        partitions = [(3,), (2, 1), (1, 1, 1)]
+    elif n == 2:
+        partitions = [(2,), (1, 1)]
+    elif n == 1:
+        partitions = [(1,)]
+    elif n == 0:
+        return ()
+    else:
+        partitions = [(n,)]
+        for k in range(n):
+            m = n - k
+            partitions.extend(
+                tuple(
+                    sorted((m, *p), reverse=True)
+                ) for p in _generate_partitions(k)
+            )
+    return partitions
+
+
+def generate_partitions(n):
+    return sorted(list(set(_generate_partitions(n))))
 
 
 @total_ordering
@@ -113,4 +168,4 @@ def enumerate_standard_tableau(partition_shape: tuple[int]) -> list[YoungTableau
     numbers.reverse()
     base_tableau[0][0] = numbers.pop()
     all_tableaus = _fill_unfinished_tableau(base_tableau, numbers)
-    return all_tableaus
+    return sorted(all_tableaus)
