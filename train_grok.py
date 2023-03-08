@@ -233,7 +233,9 @@ def main():
     )
 
     checkpoint_dir, _ = setup_checkpointing(config['train'])
-    mult_table.write_parquet(checkpoint_dir / 'data.parquet')
+    mult_table.select(
+        [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
+    ).write_parquet(checkpoint_dir / 'data.parquet')
 
     model = SnMLP.from_config(config['model']).to(device)
     optimizer = torch.optim.AdamW(
