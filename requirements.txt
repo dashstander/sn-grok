@@ -1,6 +1,7 @@
 accelerate
 confection
 git+https://github.com/dashstander/TransformerLens
+plotnine
 polars
 tqdm
 wandb
