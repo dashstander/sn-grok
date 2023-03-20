@@ -97,8 +97,8 @@ def sn_fourier_basis_2d(ft, n):
     for perm1, perm2 in product(permutations, permutations):
         fourier_decomp = []
         for part1, part2 in product(all_partitions, all_partitions):
-            inverse_mat1 = torch.asarray(all_irreps[part1][perm1.sigma].T).squeeze()      
-            inverse_mat2 = torch.asarray(all_irreps[part2][perm2.sigma].T).squeeze()
+            inverse_mat1 = torch.asarray(all_irreps[part1][perm1.sigma].T).squeeze().contiguous()   
+            inverse_mat2 = torch.asarray(all_irreps[part2][perm2.sigma].T).squeeze().contiguous()
             inv_mat = torch.kron(inverse_mat1 , inverse_mat2)
             trace = ift_trace(ft[(part1, part2)], inv_mat).unsqueeze(0)
             fourier_decomp.append(trace)

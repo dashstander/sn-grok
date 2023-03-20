@@ -149,11 +149,12 @@ class Permutation:
         perm = deepcopy(self)
         i = 0
         while not perm.is_identity():
-            perm = self * perm
+            old_perm = perm
+            perm = self * old_perm
             i += 1
-        self._inverse = perm
+        self._inverse = old_perm
         self._order = i
-        return perm
+        return old_perm
     
     @property
     def order(self):
