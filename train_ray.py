@@ -1,0 +1,207 @@
+from confection import Config
+import copy
+from pathlib import Path
+import polars as pl
+import ray
+import torch
+from torch.utils.data import DataLoader, TensorDataset
+import tqdm.auto as tqdm
+import wandb
+
+from sngrok.model import SnMLP
+from sngrok.permutations import make_permutation_dataset
+from sngrok.utils import (
+    calculate_checkpoint_epochs,
+    parse_arguments,
+    set_seeds,
+    setup_checkpointing
+)
+
+
+def train_test_split(df, frac_train, rng):
+    group_order = df.shape[0]
+    num_train_samples = int(group_order * frac_train)
+    zeroes = pl.zeros(group_order, dtype=pl.UInt8)
+    train_split = rng.choice(group_order, num_train_samples, replace=False)
+    zeroes[train_split] = 1
+    return df.with_columns(zeroes.alias('in_train'))
+
+
+def get_dataloaders(config, data_fp, device):
+    data = pl.read_parquet(data_fp)
+    sn_split = data.partition_by('in_train', as_dict=True)
+    train_lperms = torch.as_tensor(sn_split[1].select('index_left').to_numpy(), dtype=torch.int64, device=device)
+    train_rperms = torch.as_tensor(sn_split[1].select('index_right').to_numpy(), dtype=torch.int64, device=device)
+    train_targets = torch.as_tensor(sn_split[1].select('index_target').to_numpy(), dtype=torch.int64, device=device)
+    test_lperms = torch.as_tensor(sn_split[0].select('index_left').to_numpy(), dtype=torch.int64, device=device)
+    test_rperms = torch.as_tensor(sn_split[0].select('index_right').to_numpy(), dtype=torch.int64, device=device)
+    test_targets = torch.as_tensor(sn_split[0].select('index_target').to_numpy(), dtype=torch.int64, device=device)
+    train_data = TensorDataset(train_lperms, train_rperms, train_targets)
+    test_data = TensorDataset(test_lperms, test_rperms,test_targets)
+    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
+    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
+
+    return train_dataloader, test_dataloader
+
+
+def loss_fn(logits, labels):
+    if len(logits.shape) == 3:
+        logits = logits[:, -1]
+    logits = logits.to(torch.float64)
+    
+    log_probs = logits.log_softmax(dim=-1)
+    correct_log_probs = log_probs.gather(dim=-1, index=labels)[:, 0]
+    return -1. * correct_log_probs
+
+
+def train_forward(model, dataloader):
+    total_loss = torch.tensor(0., device='cuda')
+    for lperm, rperm, target in dataloader:
+        logits = model(lperm, rperm)
+        losses = loss_fn(logits, target)
+        mean_loss = losses.mean()
+        mean_loss.backward()
+        total_loss += mean_loss
+    return total_loss.item()
+
+
+def test_forward(model, dataloader):
+    total_loss = torch.tensor(0., device='cuda')
+    for lperm, rperm, target in dataloader:
+        logits = model(lperm, rperm)
+        losses = loss_fn(logits, target)
+        total_loss += losses.mean()
+    return total_loss.item()
+
+
+@ray.remote(num_gpus=1)
+def train(config, experiment_config):
+    exp_dir = Path(experiment_config['experiment_dir'])
+    model_version = experiment_config['model_version']
+    data_version = experiment_config['data_version']
+
+    device = torch.device('cuda')
+    model_fp = exp_dir / f'model_{model_version}.pth'
+    data_fp = exp_dir / f'data_{data_version}.parquet'
+    model = SnMLP.from_config(config['model'])
+    model.load_state_dict(model_fp).to(device)
+
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=config['optimizer']['lr'],
+        weight_decay=config['optimizer']['wd'],
+        betas=config['optimizer']['betas']
+    )
+
+    train_dataloader, test_dataloader = get_dataloaders(config, data_fp, device)
+
+    wandb.init(
+        **config['wandb'],
+        config=config
+    )
+    wandb.watch(model, log='all', log_freq=1000)
+
+    train_config = config['train']
+    checkpoint_dir = setup_checkpointing(train_config)
+    checkpoint_epochs = calculate_checkpoint_epochs(train_config)
+    model_checkpoints = []
+    opt_checkpoints = []
+
+    test_loss_data = []
+
+    for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
+        train_loss = train_forward(model, train_dataloader)
+
+        optimizer.step()
+        optimizer.zero_grad()
+
+        with torch.no_grad():
+            test_loss = test_forward(model, test_dataloader)
+
+        optimizer.zero_grad()
+
+        msg = {'loss/train': train_loss, 'loss/test': test_loss}        
+
+        if epoch in checkpoint_epochs:
+            model_state = copy.deepcopy(model.state_dict())
+            opt_state = copy.deepcopy(optimizer.state_dict())
+            torch.save(
+                {
+                    "model": model_state,
+                    "optimizer": opt_state,
+                    "config": config['model'],
+                    "rng": torch.get_rng_state()
+                },
+                checkpoint_dir / f'{epoch}.pth'
+            )
+            model_checkpoints.append(model_state)
+            opt_checkpoints.append(opt_state)
+
+        if test_loss <= train_config['grok_threshold']:
+            break
+        
+        wandb.log(msg)
+
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "config": config['model'],
+            "checkpoints": model_checkpoints,
+            "checkpoint_epochs": checkpoint_epochs,
+        },
+        checkpoint_dir / "full_run.pth"
+    )
+
+
+def initialize_and_save_model(config, experiment_dir, seed):
+    set_seeds(seed)
+    model = SnMLP.from_config(config['model'])
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "config": config['model']
+        },
+        experiment_dir / f'init_{seed}.pth'
+    )
+
+
+def initialize_and_save_data(config, experiment_dir, seed):
+    rng = set_seeds(seed)
+    n = config['train']['n']
+    frac_train = config['train']['frac_train']
+    sn_data = make_permutation_dataset(n, frac_train, rng)
+    sn_data.select(
+        [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
+    ).write_parquet(experiment_dir / f'data_{seed}.parquet')
+
+
+def main():
+    args = parse_arguments()
+    config = Config().from_disk(args.config)
+    exp_dir = Path('checkpoints/experiments')
+    model_seeds = [0, 1, 2, 3, 4, 5, 6, 7]
+    data_seeds = [8, 9, 10, 11, 12, 13, 14, 15]
+
+    for s in model_seeds:
+        initialize_and_save_model(config, exp_dir, s)
+    
+    for t in data_seeds:
+        initialize_and_save_data(config, exp_dir, t)
+
+    try:
+        train(
+            model,
+            optimizer,
+            train_data,
+            test_data,
+            config
+        )
+    except KeyboardInterrupt:
+        pass
+
+    wandb.finish()
+
+
+if __name__ == '__main__':
+    main()
+

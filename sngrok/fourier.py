@@ -58,6 +58,7 @@ def slow_ft_1d(fn_vals, n):
     return results
 
 
+
 def slow_ft_2d(fn_vals, n):
     all_partitions = generate_partitions(n)
     all_irreps = [SnIrrep(n, p) for p in all_partitions]
@@ -65,14 +66,13 @@ def slow_ft_2d(fn_vals, n):
     for lirrep, rirrep in product(all_irreps, all_irreps):
         mats1, mats2 = zip(
             *product(
-                lirrep.matrix_tensor().split(1),
-                rirrep.matrix_tensor().split(1))
+                lirrep.matrix_tensor().to(torch.float32).split(1),
+                rirrep.matrix_tensor().to(torch.float32).split(1))
         )
-        mats = batch_kron(
-                torch.cat(mats1).squeeze().to(fn_vals.device),
-                torch.cat(mats2).squeeze().to(fn_vals.device)
-        )
-        results[(lirrep.shape, rirrep.shape)] = fft_sum(fn_vals, mats.to(torch.float32)).squeeze()
+        mats = batch_kron(torch.cat(mats1).squeeze(), torch.cat(mats2).squeeze())
+        mats = mats.to(torch.float32)
+        mats = mats.to(fn_vals.device)
+        results[(lirrep.shape, rirrep.shape)] = fft_sum(fn_vals, mats).squeeze()
     return results
 
 
