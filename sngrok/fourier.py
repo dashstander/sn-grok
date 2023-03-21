@@ -53,7 +53,7 @@ def slow_ft_1d(fn_vals, n):
     all_irreps = [SnIrrep(n, p) for p in all_partitions]
     results = {}
     for irrep in all_irreps:
-        matrices = irrep.matrix_tensor()
+        matrices = irrep.matrix_tensor().to(fn_vals.device).to(torch.float32)
         results[irrep.shape] = fft_sum(fn_vals, matrices).squeeze()
     return results
 
@@ -68,12 +68,15 @@ def slow_ft_2d(fn_vals, n):
                 lirrep.matrix_tensor().split(1),
                 rirrep.matrix_tensor().split(1))
         )
-        mats = batch_kron(torch.cat(mats1).squeeze(), torch.cat(mats2).squeeze())
-        results[(lirrep.shape, rirrep.shape)] = fft_sum(fn_vals.to(torch.float64), mats).squeeze()
+        mats = batch_kron(
+                torch.cat(mats1).squeeze().to(fn_vals.device),
+                torch.cat(mats2).squeeze().to(fn_vals.device)
+        )
+        results[(lirrep.shape, rirrep.shape)] = fft_sum(fn_vals, mats.to(torch.float32)).squeeze()
     return results
 
 
-def sn_fourier_basis(ft, n):
+def sn_fourier_basis(ft, n, device):
     all_partitions = generate_partitions(n)
     permutations = Permutation.full_group(n)
     group_order = len(permutations)
@@ -82,13 +85,13 @@ def sn_fourier_basis(ft, n):
     for perm in permutations:
         fourier_decomp = []
         for part in all_partitions:
-            inv_rep = torch.asarray(all_irreps[part][perm.sigma].T).squeeze()            
+            inv_rep = torch.asarray(all_irreps[part][perm.sigma].T, device=device).squeeze()            
             fourier_decomp.append(ift_trace(ft[part], inv_rep).unsqueeze(0))
         ift_decomps.append(torch.cat(fourier_decomp).unsqueeze(0))
     return torch.cat(ift_decomps) / group_order
 
 
-def sn_fourier_basis_2d(ft, n):
+def sn_fourier_basis_2d(ft, n, device):
     all_partitions = generate_partitions(n)
     permutations = Permutation.full_group(n)
     group_order = 1.0 * len(permutations)**2
@@ -97,9 +100,9 @@ def sn_fourier_basis_2d(ft, n):
     for perm1, perm2 in product(permutations, permutations):
         fourier_decomp = []
         for part1, part2 in product(all_partitions, all_partitions):
-            inverse_mat1 = torch.asarray(all_irreps[part1][perm1.sigma].T).squeeze().contiguous()   
-            inverse_mat2 = torch.asarray(all_irreps[part2][perm2.sigma].T).squeeze().contiguous()
-            inv_mat = torch.kron(inverse_mat1 , inverse_mat2)
+            inverse_mat1 = torch.asarray(all_irreps[part1][perm1.sigma].T, device=device).squeeze().contiguous()   
+            inverse_mat2 = torch.asarray(all_irreps[part2][perm2.sigma].T, device=device).squeeze().contiguous()
+            inv_mat = torch.kron(inverse_mat1 , inverse_mat2).to(torch.float32)
             trace = ift_trace(ft[(part1, part2)], inv_mat).unsqueeze(0)
             fourier_decomp.append(trace)
         ift_decomps.append(torch.cat(fourier_decomp).unsqueeze(0))
