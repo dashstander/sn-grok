@@ -151,9 +151,7 @@ def train(config, experiment_config, sentinel):
         optimizer.zero_grad()
 
         msg = {'loss/train': train_loss, 'loss/test': test_loss}
-
-        if epoch % 100 == 0:
-            sentinel.report_progress.remote(run_name, epoch, test_loss, False)
+        sentinel.report_progress.remote(run_name, epoch, test_loss, False)
 
         if epoch in checkpoint_epochs:
             model_state = copy.deepcopy(model.state_dict())
