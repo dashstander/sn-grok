@@ -217,6 +217,7 @@ def initialize_and_save_data(config, experiment_dir, seed):
 
 def main():
     ray.init()
+    num_gpus = 8
 
     args = parse_arguments()
     config = Config().from_disk(args.config)
@@ -239,13 +240,17 @@ def main():
         } for mseed, dseed in product(model_seeds, data_seeds)
     ]
 
-    sentinel = ProgressActor.remote(len(exp_configs))
+    sentinel = ProgressActor.remote(len(model_seeds) * len(data_seeds))
 
-    unfinished = [train.remote(config, exp, sentinel) for exp in exp_configs]
+    jobs = (train.remote(config, exp, sentinel) for exp in exp_configs)
+
+    unfinished = [next(jobs) for _ in range(num_gpus)]
     time.sleep(60)
     while unfinished:
-        update = sentinel.get_progress.remote()
-        _, unfinished = ray.wait(unfinished, num_returns=1)
+        update = ray.get(sentinel.get_progress.remote())
+        finished, unfinished = ray.wait(unfinished, num_returns=1)
+        if len(finished) > 0:
+            unfinished.extend([next(jobs) for _ in range(len(finished))])
         print('###############')
         print(f'{update["progress"] * 100}% complete')
         for job in update['jobs']:
