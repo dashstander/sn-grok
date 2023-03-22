@@ -41,7 +41,8 @@ class ProgressActor:
         return update
 
 
-def train_test_split(df, frac_train, rng):
+def train_test_split(n, frac_train, rng):
+    df = make_permutation_dataset(n)
     group_order = df.shape[0]
     num_train_samples = int(group_order * frac_train)
     zeroes = pl.zeros(group_order, dtype=pl.UInt8)
