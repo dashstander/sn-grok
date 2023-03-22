@@ -37,7 +37,7 @@ class ProgressActor:
             if progress['is_finished']:
                 self.tasks.pop(task_id)
                 self.completed_tasks += 1
-        update['progress': self.completed_tasks / self.total_tasks]
+        update['progress'] = self.completed_tasks / self.total_tasks
         return update
 
 
