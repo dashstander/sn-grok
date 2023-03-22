@@ -19,28 +19,6 @@ from sngrok.utils import (
 )
 
 
-@ray.remote
-class ProgressActor:
-    def __init__(self, total_tasks: int):
-        self.total_tasks = 1.0 * total_tasks
-        self.tasks = {}
-        self.completed_tasks = 0
-        
-
-    def report_progress(self, task_id: str, num_epochs: int, test_loss: float, is_finished: bool) -> None:
-        self.tasks[task_id] = {'epochs': num_epochs, 'loss': test_loss, 'is_finished': is_finished}
-
-    def get_progress(self):
-        update = {'jobs': {}}
-        for task_id, progress in self.tasks.items():
-            update['jobs'][task_id] = progress
-            if progress['is_finished']:
-                self.tasks.pop(task_id)
-                self.completed_tasks += 1
-        update['progress'] = self.completed_tasks / self.total_tasks
-        return update
-
-
 def train_test_split(n, frac_train, rng):
     _, df = make_permutation_dataset(n)
     group_order = df.shape[0]
@@ -107,6 +85,8 @@ def train(config, experiment_config, sentinel):
     data_version = experiment_config['data_version']
     run_name = f'model-{model_version}_data-{data_version}'
 
+    print(f'Beginning training {run_name} on device {ray.get_gpu_ids()}')
+
     run_dir = exp_dir / run_name
     run_dir.mkdir(exist_ok=True)
 
@@ -151,9 +131,9 @@ def train(config, experiment_config, sentinel):
         optimizer.zero_grad()
 
         msg = {'loss/train': train_loss, 'loss/test': test_loss}
-        sentinel.report_progress.remote(run_name, epoch, test_loss, False)
 
         if epoch in checkpoint_epochs:
+            print(f'{run_name}: saving at epoch {epoch} with loss {test_loss}')
             model_state = copy.deepcopy(model.state_dict())
             opt_state = copy.deepcopy(optimizer.state_dict())
             torch.save(
@@ -173,9 +153,7 @@ def train(config, experiment_config, sentinel):
         wandb.log(msg)
         if test_loss <= train_config['grok_threshold']:
             break
-    
-    sentinel.report_progress.remote(run_name, epoch, test_loss, True)    
-    
+        
     torch.save(
         {
             "model": model.state_dict(),
@@ -188,6 +166,7 @@ def train(config, experiment_config, sentinel):
         run_dir / "full_run.pth"
     )
     wandb.finish()
+    return run_name, epoch, test_loss
 
 
 
@@ -238,22 +217,14 @@ def main():
         } for mseed, dseed in product(model_seeds, data_seeds)
     ]
 
-    sentinel = ProgressActor.remote(len(model_seeds) * len(data_seeds))
-
-    jobs = (train.remote(config, exp, sentinel) for exp in exp_configs)
-
-    unfinished = [next(jobs) for _ in range(num_gpus)]
-    time.sleep(60)
-    while unfinished:
-        update = ray.get(sentinel.get_progress.remote())
-        finished, unfinished = ray.wait(unfinished, num_returns=1)
+    jobs = [train.remote(config, exp) for exp in exp_configs]
+    time.sleep(300)
+    while jobs:
+        finished, jobs = ray.wait(jobs, num_returns=1)
         if len(finished) > 0:
-            unfinished.extend([next(jobs) for _ in range(len(finished))])
-        print('###############')
-        print(f'{update["progress"] * 100}% complete')
-        for job in update['jobs']:
-            print(job)
-        print('###############')
+            results = ray.get(finished)
+            for name, epoch, loss in results:
+                print(f'Job {name} finished after {epoch} epochs with loss {loss}')
         time.sleep(300)
 
 
