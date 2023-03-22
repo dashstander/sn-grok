@@ -208,7 +208,7 @@ def initialize_and_save_data(config, experiment_dir, seed):
     rng = set_seeds(seed)
     n = config['train']['n']
     frac_train = config['train']['frac_train']
-    sn_data = make_permutation_dataset(n, frac_train, rng)
+    sn_data = train_test_split(n, frac_train, rng)
     sn_data.select(
         [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
     ).write_parquet(experiment_dir / f'data_{seed}.parquet')
