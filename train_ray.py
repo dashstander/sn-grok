@@ -77,7 +77,7 @@ def test_forward(model, dataloader):
 
 
 @ray.remote(num_gpus=1)
-def train(config, experiment_config, sentinel):
+def train(config, experiment_config):
     config = copy.deepcopy(config)
     config.update({'experiment': experiment_config})
     exp_dir = Path(experiment_config['experiment_dir'])
