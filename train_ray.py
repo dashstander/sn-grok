@@ -14,8 +14,8 @@ from sngrok.permutations import make_permutation_dataset
 from sngrok.utils import (
     calculate_checkpoint_epochs,
     parse_arguments,
-    set_seeds,
-    setup_checkpointing
+    set_seeds
+    
 )
 
 
@@ -214,8 +214,8 @@ def initialize_and_save_data(config, experiment_dir, seed):
 
 
 def main():
-    ray.init()
     num_gpus = 8
+    ray.init(num_gpus=num_gpus)
 
     args = parse_arguments()
     config = Config().from_disk(args.config)
