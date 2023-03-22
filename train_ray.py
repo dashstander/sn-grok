@@ -1,11 +1,12 @@
 from confection import Config
 import copy
 from pathlib import Path
+from itertools import product
 import polars as pl
 import ray
+import time
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-import tqdm.auto as tqdm
 import wandb
 
 from sngrok.model import SnMLP
@@ -16,6 +17,28 @@ from sngrok.utils import (
     set_seeds,
     setup_checkpointing
 )
+
+
+@ray.remote
+class ProgressActor:
+    def __init__(self, total_tasks: int):
+        self.total_tasks = 1.0 * total_tasks
+        self.tasks = {}
+        self.completed_tasks = 0
+        
+
+    def report_progress(self, task_id: str, num_epochs: int, test_loss: float, is_finished: bool) -> None:
+        self.tasks[task_id] = {'epochs': num_epochs, 'loss': test_loss, 'is_finished': is_finished}
+
+    def get_progress(self):
+        update = {'jobs': {}}
+        for task_id, progress in self.tasks.items():
+            update['jobs'][task_id] = progress
+            if progress['is_finished']:
+                self.tasks.pop(task_id)
+                self.completed_tasks += 1
+        update['progress': self.completed_tasks / self.total_tasks]
+        return update
 
 
 def train_test_split(df, frac_train, rng):
@@ -75,10 +98,16 @@ def test_forward(model, dataloader):
 
 
 @ray.remote(num_gpus=1)
-def train(config, experiment_config):
+def train(config, experiment_config, sentinel):
+    config = copy.deepcopy(config)
+    config.update({'experiment': experiment_config})
     exp_dir = Path(experiment_config['experiment_dir'])
     model_version = experiment_config['model_version']
     data_version = experiment_config['data_version']
+    run_name = f'model-{model_version}_data-{data_version}'
+
+    run_dir = exp_dir / run_name
+    run_dir.mkdir(exist_ok=True)
 
     device = torch.device('cuda')
     model_fp = exp_dir / f'model_{model_version}.pth'
@@ -97,19 +126,19 @@ def train(config, experiment_config):
 
     wandb.init(
         **config['wandb'],
+        name=run_name,
         config=config
     )
-    wandb.watch(model, log='all', log_freq=1000)
+    #wandb.watch(model, log='all', log_freq=1000)
 
     train_config = config['train']
-    checkpoint_dir = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     model_checkpoints = []
     opt_checkpoints = []
-
+    train_loss_data = []
     test_loss_data = []
 
-    for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
+    for epoch in range(train_config['num_epochs']):
         train_loss = train_forward(model, train_dataloader)
 
         optimizer.step()
@@ -120,7 +149,10 @@ def train(config, experiment_config):
 
         optimizer.zero_grad()
 
-        msg = {'loss/train': train_loss, 'loss/test': test_loss}        
+        msg = {'loss/train': train_loss, 'loss/test': test_loss}
+
+        if epoch % 100 == 0:
+            sentinel.report_progress.remote(run_name, epoch, test_loss, False)
 
         if epoch in checkpoint_epochs:
             model_state = copy.deepcopy(model.state_dict())
@@ -132,25 +164,32 @@ def train(config, experiment_config):
                     "config": config['model'],
                     "rng": torch.get_rng_state()
                 },
-                checkpoint_dir / f'{epoch}.pth'
+                run_dir / f'{epoch}.pth'
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
+            train_loss_data.append(train_loss)
+            test_loss_data.append(test_loss)
 
+        wandb.log(msg)
         if test_loss <= train_config['grok_threshold']:
             break
-        
-        wandb.log(msg)
-
+    
+    sentinel.report_progress.remote(run_name, epoch, test_loss, True)    
+    
     torch.save(
         {
             "model": model.state_dict(),
+            "final_epoch": epoch,
             "config": config['model'],
+            "full_config": config,
             "checkpoints": model_checkpoints,
             "checkpoint_epochs": checkpoint_epochs,
         },
-        checkpoint_dir / "full_run.pth"
+        run_dir / "full_run.pth"
     )
+    wandb.finish()
+
 
 
 def initialize_and_save_model(config, experiment_dir, seed):
@@ -176,8 +215,11 @@ def initialize_and_save_data(config, experiment_dir, seed):
 
 
 def main():
+    ray.init()
+
     args = parse_arguments()
     config = Config().from_disk(args.config)
+
     exp_dir = Path('checkpoints/experiments')
     model_seeds = [0, 1, 2, 3, 4, 5, 6, 7]
     data_seeds = [8, 9, 10, 11, 12, 13, 14, 15]
@@ -188,18 +230,27 @@ def main():
     for t in data_seeds:
         initialize_and_save_data(config, exp_dir, t)
 
-    try:
-        train(
-            model,
-            optimizer,
-            train_data,
-            test_data,
-            config
-        )
-    except KeyboardInterrupt:
-        pass
+    exp_configs = [
+        {
+        'experiment_dir': exp_dir,
+        'model_version': mseed,
+        'data_version': dseed
+        } for mseed, dseed in product(model_seeds, data_seeds)
+    ]
 
-    wandb.finish()
+    sentinel = ProgressActor.remote(len(exp_configs))
+
+    unfinished = [train.remote(config, exp, sentinel) for exp in exp_configs]
+    time.sleep(60)
+    while unfinished:
+        update = sentinel.get_progress.remote()
+        _, unfinished = ray.wait(unfinished, num_returns=1)
+        print('###############')
+        print(f'{update["progress"] * 100}% complete')
+        for job in update['jobs']:
+            print(job)
+        print('###############')
+        time.sleep(300)
 
 
 if __name__ == '__main__':
