@@ -10,5 +10,5 @@ command:
   - ${interpreter}
   - ${program}
   - "--config"
-  - "configs/s5_exp.toml"
+  - "configs/s5_experiments.toml"
   - ${args}
