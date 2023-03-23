@@ -190,7 +190,8 @@ def main():
 
     model_init = torch.load(model_fp, map_location='cpu')
     model = SnMLP.from_config(config['model'])
-    model.load_state_dict(model_init['model']).to(device)
+    model.load_state_dict(model_init['model'])
+    model.to(device)
 
 
     torch.manual_seed(314159)
