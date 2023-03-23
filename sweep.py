@@ -4,7 +4,7 @@ import copy
 from pathlib import Path
 from itertools import product
 import polars as pl
-import time
+import tqdm
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import wandb
@@ -93,7 +93,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, checkpoin
     train_loss_data = []
     test_loss_data = []
 
-    for epoch in range(train_config['num_epochs']):
+    for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
         train_loss = train_forward(model, train_dataloader)
 
         optimizer.step()
