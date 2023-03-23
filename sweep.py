@@ -10,12 +10,13 @@ from torch.utils.data import DataLoader, TensorDataset
 import wandb
 
 from sngrok.model import SnMLP
+from sngrok.fourier import slow_ft_1d, calc_power
 from sngrok.permutations import make_permutation_dataset
 from sngrok.utils import (
     calculate_checkpoint_epochs,
-    set_seeds,
-    setup_checkpointing
+    set_seeds
 )
+
 
 
 def parse_arguments():
@@ -107,6 +108,15 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, checkpoin
         msg = {'loss/train': train_loss, 'loss/test': test_loss}        
 
         if epoch in checkpoint_epochs:
+
+            lembed_ft = slow_ft_1d(model.lembed.weight.to('cpu'), 5)
+            rembed_ft = slow_ft_1d(model.rembed.weight.to('cpu'), 5)
+            lembed_power = calc_power(lembed_ft, 120)
+            rembed_power = calc_power(rembed_ft, 120)
+            msg.update({
+                'left_embedding_irreps': lembed_power,
+                'right_embedding_irreps': rembed_power
+            })
             model_state = copy.deepcopy(model.state_dict())
             opt_state = copy.deepcopy(optimizer.state_dict())
             torch.save(
