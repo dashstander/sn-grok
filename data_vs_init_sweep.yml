@@ -1,0 +1,14 @@
+program: sweep.py
+method: grid
+parameters:
+  model_seed:
+    values: [0, 1, 2, 3, 4, 5, 6, 7]
+  data_seed:
+    values: [10, 11, 12, 13, 14, 15, 16, 17]
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - "--config"
+  - "configs/s5_exp.toml"
+  - ${args}

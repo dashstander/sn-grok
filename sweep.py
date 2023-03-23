@@ -1,9 +1,9 @@
+import argparse
 from confection import Config
 import copy
 from pathlib import Path
 from itertools import product
 import polars as pl
-import ray
 import time
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -13,10 +13,18 @@ from sngrok.model import SnMLP
 from sngrok.permutations import make_permutation_dataset
 from sngrok.utils import (
     calculate_checkpoint_epochs,
-    parse_arguments,
-    set_seeds
-    
+    set_seeds,
+    setup_checkpointing
 )
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, help='Path to TOML config file')
+    parser.add_argument('--model_seed', type=int)
+    parser.add_argument('--data_seed', type=int)
+    args, _ = parser.parse_known_args()
+    return args
 
 
 def train_test_split(n, frac_train, rng):
@@ -76,46 +84,12 @@ def test_forward(model, dataloader):
     return total_loss.item()
 
 
-@ray.remote(num_gpus=1)
-def train(config, experiment_config):
-    config = copy.deepcopy(config)
-    config.update({'experiment': experiment_config})
-    exp_dir = Path(experiment_config['experiment_dir'])
-    model_version = experiment_config['model_version']
-    data_version = experiment_config['data_version']
-    run_name = f'model-{model_version}_data-{data_version}'
-
-    print(f'Beginning training {run_name} on device {ray.get_gpu_ids()}')
-
-    run_dir = exp_dir / run_name
-    run_dir.mkdir(exist_ok=True)
-
-    device = torch.device('cuda')
-    model_fp = exp_dir / f'model_{model_version}.pth'
-    data_fp = exp_dir / f'data_{data_version}.parquet'
-    model = SnMLP.from_config(config['model'])
-    model.load_state_dict(model_fp).to(device)
-
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config['optimizer']['lr'],
-        weight_decay=config['optimizer']['wd'],
-        betas=config['optimizer']['betas']
-    )
-
-    train_dataloader, test_dataloader = get_dataloaders(config, data_fp, device)
-
-    wandb.init(
-        **config['wandb'],
-        name=run_name,
-        config=config
-    )
-    #wandb.watch(model, log='all', log_freq=1000)
-
+def train(model, optimizer, train_dataloader, test_dataloader, config, checkpoint_dir):
     train_config = config['train']
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     model_checkpoints = []
     opt_checkpoints = []
+
     train_loss_data = []
     test_loss_data = []
 
@@ -130,10 +104,9 @@ def train(config, experiment_config):
 
         optimizer.zero_grad()
 
-        msg = {'loss/train': train_loss, 'loss/test': test_loss}
+        msg = {'loss/train': train_loss, 'loss/test': test_loss}        
 
         if epoch in checkpoint_epochs:
-            print(f'{run_name}: saving at epoch {epoch} with loss {test_loss}')
             model_state = copy.deepcopy(model.state_dict())
             opt_state = copy.deepcopy(optimizer.state_dict())
             torch.save(
@@ -143,32 +116,37 @@ def train(config, experiment_config):
                     "config": config['model'],
                     "rng": torch.get_rng_state()
                 },
-                run_dir / f'{epoch}.pth'
+                checkpoint_dir / f'{epoch}.pth'
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
             train_loss_data.append(train_loss)
             test_loss_data.append(test_loss)
 
-        wandb.log(msg)
         if test_loss <= train_config['grok_threshold']:
             break
         
+        wandb.log(msg)
+
+    checkpoint_epochs = checkpoint_epochs[:len(model_checkpoints)]
+    checkpoint_epochs.append(epoch)
+    model_state = copy.deepcopy(model.state_dict())
+    model_checkpoints.append(model_state)
+    train_loss_data.append(train_loss)
+    test_loss_data.append(test_loss)
+    
     torch.save(
         {
-            "model": model.state_dict(),
-            "final_epoch": epoch,
+            "model": model_state,
             "config": config['model'],
-            "full_config": config,
             "checkpoints": model_checkpoints,
             "checkpoint_epochs": checkpoint_epochs,
+            "train_loss": train_loss_data,
+            "test_loss": test_loss_data
         },
-        run_dir / "full_run.pth"
+        checkpoint_dir / "full_run.pth"
     )
-    wandb.finish()
-    return run_name, epoch, test_loss
-
-
+    
 
 def initialize_and_save_model(config, experiment_dir, seed):
     set_seeds(seed)
@@ -193,39 +171,58 @@ def initialize_and_save_data(config, experiment_dir, seed):
 
 
 def main():
-    num_gpus = 8
-    ray.init(num_gpus=num_gpus)
-
+    
     args = parse_arguments()
     config = Config().from_disk(args.config)
 
     exp_dir = Path('checkpoints/experiments')
-    model_seeds = [0, 1, 2, 3, 4, 5, 6, 7]
-    data_seeds = [8, 9, 10, 11, 12, 13, 14, 15]
+    run_name = f'model_{args.model_seed}_data_{args.data_seed}'
 
-    for s in model_seeds:
-        initialize_and_save_model(config, exp_dir, s)
-    
-    for t in data_seeds:
-        initialize_and_save_data(config, exp_dir, t)
+    run_dir = exp_dir / run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
 
-    exp_configs = [
-        {
-        'experiment_dir': exp_dir,
-        'model_version': mseed,
-        'data_version': dseed
-        } for mseed, dseed in product(model_seeds, data_seeds)
-    ]
+    device = torch.device('cuda')
 
-    jobs = [train.remote(config, exp) for exp in exp_configs]
-    time.sleep(300)
-    while jobs:
-        finished, jobs = ray.wait(jobs, num_returns=1)
-        if len(finished) > 0:
-            results = ray.get(finished)
-            for name, epoch, loss in results:
-                print(f'Job {name} finished after {epoch} epochs with loss {loss}')
-        time.sleep(300)
+    data_fp = exp_dir / f'data_{args.data_seed}.parquet'
+    model_fp = exp_dir / f'init_{args.model_seed}.pth'
+
+    train_data, test_data = get_dataloaders(config['train'], data_fp, device)
+
+    model_init = torch.load(model_fp, map_location='cpu')
+    model = SnMLP.from_config(config['model'])
+    model.load_state_dict(model_init['model']).to(device)
+
+
+    torch.manual_seed(314159)
+
+
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=config['optimizer']['lr'],
+        weight_decay=config['optimizer']['wd'],
+        betas=config['optimizer']['betas']
+    )
+
+    wandb.init(
+        **config['wandb'],
+        config=config,
+        name=run_name
+    )
+    wandb.watch(model, log='all', log_freq=1000)
+
+    try:
+        train(
+            model,
+            optimizer,
+            train_data,
+            test_data,
+            config,
+            run_dir
+        )
+    except KeyboardInterrupt:
+        pass
+
+    wandb.finish()
 
 
 if __name__ == '__main__':

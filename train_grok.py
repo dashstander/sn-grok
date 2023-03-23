@@ -187,20 +187,6 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
 
         if test_loss <= train_config['grok_threshold']:
             break
-        """
-        if epoch > 0 and (epoch % 1000 == 0):
-            with torch.no_grad():
-                test_loss_df = conj_forward(model, conj_dataloader)
-            num_vals = test_loss_df.shape[0]
-            test_loss_data.append(
-                test_loss_df.with_columns(
-                    pl.Series(name='epoch', values=([epoch]*num_vals))
-                )
-            )
-            msg.update(log_conj_class_losses(test_loss_df))
-        
-            test_loss_data = []
-        """
         
         wandb.log(msg)
     
