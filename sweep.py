@@ -186,7 +186,7 @@ def main():
     config = Config().from_disk(args.config)
 
     exp_dir = Path('checkpoints/experiments')
-    run_name = f'model_{args.model_seed}_data_{args.data_seed}'
+    run_name = f'model_{args.model_seed}_data_{args.data_seed}_v2'
 
     run_dir = exp_dir / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
