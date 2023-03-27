@@ -136,7 +136,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, checkpoin
         if test_loss <= train_config['grok_threshold']:
             break
         
-        wandb.log(msg)
+        #wandb.log(msg)
 
     checkpoint_epochs = checkpoint_epochs[:len(model_checkpoints)]
     checkpoint_epochs.append(epoch)
@@ -214,12 +214,12 @@ def main():
         betas=config['optimizer']['betas']
     )
 
-    wandb.init(
-        **config['wandb'],
-        config=config,
-        name=run_name
-    )
-    wandb.watch(model, log='all', log_freq=1000)
+    #wandb.init(
+    #    **config['wandb'],
+    #    config=config,
+    #    name=run_name
+    #)
+    #wandb.watch(model, log='all', log_freq=1000)
 
     try:
         train(
