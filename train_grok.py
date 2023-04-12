@@ -153,8 +153,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
 
         if epoch % 500 == 0:
             freq_data, left_powers, right_powers = fourier_analysis(model, n, epoch)
-            left_powers = {f'left_linear/{k}': v for k, v in left_powers}
-            right_powers = {f'right_linear/{k}': v for k, v in right_powers}
+            left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
+            right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
             msg.update(left_powers)
             msg.update(right_powers)
             freq_data.melt(
