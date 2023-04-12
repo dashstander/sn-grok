@@ -25,7 +25,7 @@ def calc_power_contributions(tensor, n):
     power_contribs = {irrep: power / total_power for irrep, power in irrep_power.items()}
     irreps = list(power_contribs.keys())
     power_vals = torch.cat([power_contribs[irrep].unsqueeze(0) for irrep in irreps], dim=0)
-    val_data = pl.DataFrame(power_vals.detach().numpy(), schema=[f'dim{i}' for i in range(256)])
+    val_data = pl.DataFrame(power_vals.detach().cpu().numpy(), schema=[f'dim{i}' for i in range(256)])
     val_data.insert_at_idx(
         0, 
         pl.Series('irrep', [str(i) for i in irreps])
