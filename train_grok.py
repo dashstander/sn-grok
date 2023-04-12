@@ -27,10 +27,10 @@ def calc_power_contributions(tensor, n):
     power_vals = torch.cat([power_contribs[irrep].unsqueeze(0) for irrep in irreps], dim=0)
     val_data = pl.DataFrame(power_vals.detach().cpu().numpy(), schema=[f'dim{i}' for i in range(256)])
     val_data.insert_at_idx(
-        0, 
+        0,
         pl.Series('irrep', [str(i) for i in irreps])
     )
-    return val_data
+    return val_data, power_contribs
 
 
 def fourier_analysis(model, n, epoch):
@@ -40,13 +40,13 @@ def fourier_analysis(model, n, epoch):
     embed_dim = lembeds.shape[0]
     left_linear = (W[:, :embed_dim] @ lembeds).T
     right_linear = (W[:, embed_dim:] @ rembeds).T
-    lembed_power_df = calc_power_contributions(left_linear, n)
-    rembed_power_df = calc_power_contributions(right_linear, n)
+    lembed_power_df, lpowers = calc_power_contributions(left_linear, n)
+    rembed_power_df, rpowers = calc_power_contributions(right_linear, n)
     lembed_power_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * lembed_power_df.shape[0]))
     rembed_power_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * rembed_power_df.shape[0]))
     df = pl.concat([lembed_power_df, rembed_power_df], how='vertical')
     df.insert_at_idx(0, pl.Series('epoch', [epoch] * df.shape[0]))
-    return df
+    return df, lpowers, rpowers
 
 
 
@@ -146,13 +146,20 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
 
         optimizer.zero_grad()
 
-        freq_data = fourier_analysis(model, n, epoch)
-
         msg = {
             'loss/train': train_loss,
-            'loss/test': test_loss,
-            'fourier_data': freq_data.to_pandas()
-        }        
+            'loss/test': test_loss
+        }
+
+        if epoch % 500 == 0:
+            freq_data, left_powers, right_powers = fourier_analysis(model, n, epoch)
+            left_powers = {f'left_linear/{k}': v for k, v in left_powers}
+            right_powers = {f'right_linear/{k}': v for k, v in right_powers}
+            msg.update(left_powers)
+            msg.update(right_powers)
+            freq_data.melt(
+                id_vars=['epoch', 'layer', 'irrep']
+            ).write_parquet(checkpoint_dir / f'fourier{epoch}.parquet')
 
         if epoch in checkpoint_epochs:
             train_loss_data.append(train_loss)
