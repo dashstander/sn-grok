@@ -40,8 +40,8 @@ def fourier_analysis(model, n, epoch):
     embed_dim = lembeds.shape[0]
     left_linear = (W[:, :embed_dim] @ lembeds).T
     right_linear = (W[:, embed_dim:] @ rembeds).T
-    lembed_power_df = slow_ft_1d(left_linear, n)
-    rembed_power_df = slow_ft_1d(right_linear, n)
+    lembed_power_df = calc_power_contributions(left_linear, n)
+    rembed_power_df = calc_power_contributions(right_linear, n)
     lembed_power_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * lembed_power_df.shape[0]))
     rembed_power_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * rembed_power_df.shape[0]))
     df = pl.concat([lembed_power_df, rembed_power_df], how='vertical')
