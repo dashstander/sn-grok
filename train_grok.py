@@ -37,8 +37,9 @@ def fourier_analysis(model, n, epoch):
     W = model.linear.weight
     lembeds = model.lembed.weight.T
     rembeds = model.rembed.weight.T
-    lembed_power_df = slow_ft_1d(W[:, :256] @ lembeds, n)
-    rembed_power_df = slow_ft_1d(W[:, 256:] @ rembeds, n)
+    embed_dim = lembeds.shape[0]
+    lembed_power_df = slow_ft_1d(W[:, :embed_dim] @ lembeds, n)
+    rembed_power_df = slow_ft_1d(W[:, embed_dim:] @ rembeds, n)
     lembed_power_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * lembed_power_df.shape[0]))
     rembed_power_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * rembed_power_df.shape[0]))
     df = pl.concat([lembed_power_df, rembed_power_df], how='vertical')
