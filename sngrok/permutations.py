@@ -134,27 +134,12 @@ class Permutation:
         cycle_lens = [len(c) for c in self.cycle_rep]
         return tuple(sorted(cycle_lens, reverse=True))
 
+    @property
     def inverse(self):
         inv = [-1] * self.n
         for i, val in enumerate(self.sigma):
             inv[val] = i
-        return Permutation(inv)
-
-
-    
-    @property
-    def inverse(self):
-        if self._inverse is not None:
-            return self._inverse
-        perm = deepcopy(self)
-        i = 0
-        while not perm.is_identity():
-            old_perm = perm
-            perm = self * old_perm
-            i += 1
-        self._inverse = old_perm
-        self._order = i
-        return old_perm
+        return Permutation(inv)    
     
     @property
     def order(self):
@@ -198,6 +183,9 @@ def get_index(df, result):
         ).select('index').item()
     )
 
+def _to_str(s):
+        return '(' + ', '.join([str(c) for c in s]) + ')'
+
 
 def make_permutation_dataset(n: int):
     perms = []
@@ -205,62 +193,54 @@ def make_permutation_dataset(n: int):
     one_lines = []
     cycle_reps = []
     conj_classes = []
+    strings = []
     parities = []
     perms = [Permutation(seq) for seq in permutations(list(range(n)))]
     perms = sorted(perms)
     for i, p in enumerate(perms):
         one_lines.append(p.sigma)
+        strings.append(str(p.sigma))
         cycle_reps.append(p.cycle_rep)
         conj_classes.append(p.conjugacy_class)
         parities.append(p.parity)
         index[p.sigma] = i
     perm_df = pl.from_dict({
         'permutation': one_lines,
+        'string_perm': strings,
         'cycle_rep': cycle_reps,
         'conjugacy_class': conj_classes,
         'parity': parities
     }).with_row_count(name='index')
-    perm_df = perm_df.with_columns(pl.col('index').cast(pl.Int32))
-
-    _match = partial(get_index, perm_df)
-
-    mult_df = perm_df.join(perm_df, on='permutation', how='cross')
-    mult_df = mult_df.with_columns(
-        pl.col('permutation_right').arr.take(pl.col('permutation')).alias('result'))
-    mult_df = mult_df.with_columns(
-        pl.col('result').apply(_match).alias('result_index').cast(pl.Int32)
+    perm_df = perm_df.with_columns(
+        pl.col('index').cast(pl.Int32)
     )
+    
+    mult_df = perm_df.join(perm_df, on='string_perms', how='cross')
+    mult_df = mult_df.with_columns(
+        pl.col('permutation_right').arr.take(pl.col('permutation')).alias('permutation_target'))
+    mult_df = mult_df.with_columns([
+        pl.col('permutation_target').apply(_to_str)
+    ])
     mult_df = mult_df.join(
-        perm_df.select(['index', 'conjugacy_class']),
-        left_on='result_index',
-        right_on='index',
-        suffix='_result'
+        perm_df.select(['string_perm', 'index', 'conjugacy_class']),
+        left_on='permutation_target',
+        right_on='string_perm',
+        suffix='_target'
+    )
+
+    mult_df = mult_df.select(
+        pl.all().exclude(['permutation', 'permutation_right'])
     )
 
     new_schema = {
         'index': 'index_left',
-        'permutation': 'permutation_left',
+        'string_perm': 'permutation_left',
         'cycle_rep': 'cycle_rep_left',
         'conjugacy_class': 'conjugacy_class_left',
         'parity': 'parity_left',
-        'index_right': 'index_right',
-        'permutation_right': 'permutation_right',
-        'cycle_rep_right': 'cycle_rep_right',
-        'conjugacy_class_right': 'conjugacy_class_right',
-        'parity_right': 'parity_right',
-        'result': 'permutation_target',
-        'result_index': 'index_target',
-        'conjugacy_class_result': 'conjugacy_class_target'
+        'string_perm_right': 'permutation_right',
     }
     mult_df = mult_df.rename(new_schema)
-    mult_df = mult_df.with_columns([
-        pl.col('permutation_left').arr.eval(pl.element().cast(str)).arr.join(''),
-        pl.col('permutation_right').arr.eval(pl.element().cast(str)).arr.join(''),
-        pl.col('permutation_target').arr.eval(pl.element().cast(str)).arr.join(''),
-        pl.col('conjugacy_class_left').arr.eval(pl.element().cast(str)).arr.join(''),
-        pl.col('conjugacy_class_right').arr.eval(pl.element().cast(str)).arr.join(''),
-        pl.col('conjugacy_class_target').arr.eval(pl.element().cast(str)).arr.join('')
-    ])
     return perm_df, mult_df
 
 
@@ -268,7 +248,7 @@ def generate_subgroup(generators: list[tuple[int]]):
     group_size = 0
     all_perms = set(generators)
     while group_size < len(all_perms):
-        group_size = len(perms)
+        group_size = len(all_perms)
         perms = [Permutation(p) for p in all_perms]
         for perm1, perm2 in product(perms, repeat=2):
             perm3 = perm1 * perm2

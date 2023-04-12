@@ -76,7 +76,7 @@ def slow_ft_2d(fn_vals, n):
     return results
 
 
-def sn_fourier_basis(ft, n, device):
+def sn_fourier_basis(ft, n, device='cpu'):
     all_partitions = generate_partitions(n)
     permutations = Permutation.full_group(n)
     group_order = len(permutations)
@@ -85,8 +85,8 @@ def sn_fourier_basis(ft, n, device):
     for perm in permutations:
         fourier_decomp = []
         for part in all_partitions:
-            inv_rep = torch.asarray(all_irreps[part][perm.sigma].T, device=device).squeeze()            
-            fourier_decomp.append(ift_trace(ft[part], inv_rep).unsqueeze(0))
+            inv_rep = torch.asarray(all_irreps[part][perm.sigma].T, device=device).squeeze()           
+            fourier_decomp.append(ift_trace(ft[part], inv_rep.to(torch.float32)).unsqueeze(0))
         ift_decomps.append(torch.cat(fourier_decomp).unsqueeze(0))
     return torch.cat(ift_decomps) / group_order
 
