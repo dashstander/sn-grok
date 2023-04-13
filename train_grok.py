@@ -151,7 +151,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             'loss/test': test_loss
         }
 
-        if epoch % 500 == 0:
+        if epoch % 100 == 0:
             freq_data, left_powers, right_powers = fourier_analysis(model, n, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
             right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
