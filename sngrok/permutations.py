@@ -40,13 +40,13 @@ class Permutation:
         return ident == self.sigma
     
     def __repr__(self):
-        return f'Permutation {list(self.sigma)}'
+        return str(self.sigma)
     
     def __len__(self):
         return self.n
 
     def __hash__(self):
-        return hash(self.sigma)
+        return hash(str(self.sigma))
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Permutation):
