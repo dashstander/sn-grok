@@ -1,56 +1,35 @@
+import argparse
 from confection import Config
 import copy
-import math
+from pathlib import Path
+from itertools import product
 import polars as pl
+import tqdm
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-import tqdm.auto as tqdm
 import wandb
 
+from sngrok.model import SnMLP
 from sngrok.fourier import slow_ft_1d, calc_power
 from sngrok.permutations import make_permutation_dataset
-from sngrok.model import SnMLP
 from sngrok.utils import (
     calculate_checkpoint_epochs,
-    parse_arguments,
-    set_seeds,
-    setup_checkpointing,
+    set_seeds
 )
 
 
-def calc_power_contributions(tensor, n):
-    total_power = (tensor ** 2).mean(dim=0)
-    fourier_transform = slow_ft_1d(tensor, n)
-    irrep_power = calc_power(fourier_transform, math.factorial(n))
-    power_contribs = {irrep: power / total_power for irrep, power in irrep_power.items()}
-    irreps = list(power_contribs.keys())
-    power_vals = torch.cat([power_contribs[irrep].unsqueeze(0) for irrep in irreps], dim=0)
-    val_data = pl.DataFrame(power_vals.detach().cpu().numpy(), schema=[f'dim{i}' for i in range(256)])
-    val_data.insert_at_idx(
-        0,
-        pl.Series('irrep', [str(i) for i in irreps])
-    )
-    return val_data, power_contribs
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, help='Path to TOML config file')
+    parser.add_argument('--model_seed', type=int)
+    parser.add_argument('--data_seed', type=int)
+    args, _ = parser.parse_known_args()
+    return args
 
 
-def fourier_analysis(model, n, epoch):
-    W = model.linear.weight
-    lembeds = model.lembed.weight.T
-    rembeds = model.rembed.weight.T
-    embed_dim = lembeds.shape[0]
-    left_linear = (W[:, :embed_dim] @ lembeds).T
-    right_linear = (W[:, embed_dim:] @ rembeds).T
-    lembed_power_df, lpowers = calc_power_contributions(left_linear, n)
-    rembed_power_df, rpowers = calc_power_contributions(right_linear, n)
-    lembed_power_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * lembed_power_df.shape[0]))
-    rembed_power_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * rembed_power_df.shape[0]))
-    df = pl.concat([lembed_power_df, rembed_power_df], how='vertical')
-    df.insert_at_idx(0, pl.Series('epoch', [epoch] * df.shape[0]))
-    return df, lpowers, rpowers
-
-
-
-def train_test_split(df, frac_train, rng):
+def train_test_split(n, frac_train, rng):
+    _, df = make_permutation_dataset(n)
     group_order = df.shape[0]
     num_train_samples = int(group_order * frac_train)
     zeroes = pl.zeros(group_order, dtype=pl.UInt8)
@@ -59,27 +38,9 @@ def train_test_split(df, frac_train, rng):
     return df.with_columns(zeroes.alias('in_train'))
 
 
-def get_subgroup(df, parity):
-    if parity == 'all':
-        return df
-    elif parity == 0:
-        return df.filter(
-            (pl.col('parity') == 0) & (pl.col('parity_right') == 0)
-        )
-    elif parity == 1:
-        return df.filter(
-            (pl.col('parity') == 1) | (pl.col('parity_right') == 1)
-        )
-    else:
-        raise ValueError('Parity can only be 0, 1, or "all". Not {parity}')
-
-
-def get_dataloaders(config, rng, device):
-    frac_train = config['frac_train']
-    _, sn_mult_table = make_permutation_dataset(config['n'])
-    sn_mult_table = train_test_split(sn_mult_table, frac_train, rng)
-    sn_mult_table = get_subgroup(sn_mult_table, config['parity'])
-    sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
+def get_dataloaders(config, data_fp, device):
+    data = pl.read_parquet(data_fp)
+    sn_split = data.partition_by('in_train', as_dict=True)
     train_lperms = torch.as_tensor(sn_split[1].select('index_left').to_numpy(), dtype=torch.int64, device=device)
     train_rperms = torch.as_tensor(sn_split[1].select('index_right').to_numpy(), dtype=torch.int64, device=device)
     train_targets = torch.as_tensor(sn_split[1].select('index_target').to_numpy(), dtype=torch.int64, device=device)
@@ -91,7 +52,7 @@ def get_dataloaders(config, rng, device):
     train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
     test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
 
-    return train_dataloader, test_dataloader, sn_mult_table
+    return train_dataloader, test_dataloader
 
 
 def loss_fn(logits, labels):
@@ -117,21 +78,19 @@ def train_forward(model, dataloader):
 
 def test_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda')
-
     for lperm, rperm, target in dataloader:
-        logits  = model(lperm, rperm)
+        logits = model(lperm, rperm)
         losses = loss_fn(logits, target)
         total_loss += losses.mean()
     return total_loss.item()
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, config):
+def train(model, optimizer, train_dataloader, test_dataloader, config, checkpoint_dir):
     train_config = config['train']
-    n = config['train']['n']
-    checkpoint_dir, _ = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     model_checkpoints = []
     opt_checkpoints = []
+
     train_loss_data = []
     test_loss_data = []
 
@@ -146,24 +105,18 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
 
         optimizer.zero_grad()
 
-        msg = {
-            'loss/train': train_loss,
-            'loss/test': test_loss
-        }
-
-        if epoch % 100 == 0:
-            freq_data, left_powers, right_powers = fourier_analysis(model, n, epoch)
-            left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
-            right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
-            msg.update(left_powers)
-            msg.update(right_powers)
-            freq_data.melt(
-                id_vars=['epoch', 'layer', 'irrep']
-            ).write_parquet(checkpoint_dir / f'fourier{epoch}.parquet')
+        msg = {'loss/train': train_loss, 'loss/test': test_loss}        
 
         if epoch in checkpoint_epochs:
-            train_loss_data.append(train_loss)
-            test_loss_data.append(test_loss)
+
+            lembed_ft = slow_ft_1d(model.lembed.weight.to('cpu'), 5)
+            rembed_ft = slow_ft_1d(model.rembed.weight.to('cpu'), 5)
+            lembed_power = calc_power(lembed_ft, 120)
+            rembed_power = calc_power(rembed_ft, 120)
+            msg.update({
+                'left_embedding_irreps': lembed_power,
+                'right_embedding_irreps': rembed_power
+            })
             model_state = copy.deepcopy(model.state_dict())
             opt_state = copy.deepcopy(optimizer.state_dict())
             torch.save(
@@ -177,44 +130,83 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
+            train_loss_data.append(train_loss)
+            test_loss_data.append(test_loss)
 
         if test_loss <= train_config['grok_threshold']:
             break
         
-        wandb.log(msg)
+        #wandb.log(msg)
 
-
+    checkpoint_epochs = checkpoint_epochs[:len(model_checkpoints)]
+    checkpoint_epochs.append(epoch)
+    model_state = copy.deepcopy(model.state_dict())
+    model_checkpoints.append(model_state)
+    train_loss_data.append(train_loss)
+    test_loss_data.append(test_loss)
+    
     torch.save(
         {
-            "model": model.state_dict(),
+            "model": model_state,
             "config": config['model'],
             "checkpoints": model_checkpoints,
-            "checkpoint_epochs": checkpoint_epochs[:len(model_checkpoints)],
-
+            "checkpoint_epochs": checkpoint_epochs,
+            "train_loss": train_loss_data,
+            "test_loss": test_loss_data
         },
         checkpoint_dir / "full_run.pth"
     )
+    
+
+def initialize_and_save_model(config, experiment_dir, seed):
+    set_seeds(seed)
+    model = SnMLP.from_config(config['model'])
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "config": config['model']
+        },
+        experiment_dir / f'init_{seed}.pth'
+    )
+
+
+def initialize_and_save_data(config, experiment_dir, seed):
+    rng = set_seeds(seed)
+    n = config['train']['n']
+    frac_train = config['train']['frac_train']
+    sn_data = train_test_split(n, frac_train, rng)
+    sn_data.select(
+        [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
+    ).write_parquet(experiment_dir / f'data_{seed}.parquet')
+
 
 def main():
+    
     args = parse_arguments()
     config = Config().from_disk(args.config)
 
+    exp_dir = Path('checkpoints/experiments')
+    run_name = f'model_{args.model_seed}_data_{args.data_seed}_v2'
+
+    run_dir = exp_dir / run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+
     device = torch.device('cuda')
 
-    np_rng = set_seeds(config['train']['seed'])
+    data_fp = exp_dir / f'data_{args.data_seed}.parquet'
+    model_fp = exp_dir / f'init_{args.model_seed}.pth'
 
-    train_data, test_data, mult_table = get_dataloaders(
-        config['train'],
-        np_rng,
-        device
-    )
+    train_data, test_data = get_dataloaders(config['train'], data_fp, device)
 
-    checkpoint_dir, _ = setup_checkpointing(config['train'])
-    mult_table.select(
-        [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
-    ).write_parquet(checkpoint_dir / 'data.parquet')
+    model_init = torch.load(model_fp, map_location='cpu')
+    model = SnMLP.from_config(config['model'])
+    model.load_state_dict(model_init['model'])
+    model.to(device)
 
-    model = SnMLP.from_config(config['model']).to(device)
+
+    torch.manual_seed(314159)
+
+
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config['optimizer']['lr'],
@@ -222,12 +214,12 @@ def main():
         betas=config['optimizer']['betas']
     )
 
-    wandb.init(
-        **config['wandb'],
-        config=config
-    )
-
-    wandb.watch(model, log='parameters', log_freq=1000)
+    #wandb.init(
+    #    **config['wandb'],
+    #    config=config,
+    #    name=run_name
+    #)
+    #wandb.watch(model, log='all', log_freq=1000)
 
     try:
         train(
@@ -235,7 +227,8 @@ def main():
             optimizer,
             train_data,
             test_data,
-            config
+            config,
+            run_dir
         )
     except KeyboardInterrupt:
         pass

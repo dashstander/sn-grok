@@ -18,8 +18,10 @@ def set_seeds(seed):
 
 
 def setup_checkpointing(config):
+    seed = config['seed']
+    run_dir = config['run_dir']
     base_dir = Path(config['checkpoint_dir'])
-    checkpoint_dir = base_dir / config['run_dir']
+    checkpoint_dir = base_dir / f'{run_dir}_{seed}'
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     data_dir = checkpoint_dir / 'run_data'
     data_dir.mkdir(exist_ok=True)
