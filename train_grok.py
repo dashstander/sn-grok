@@ -18,7 +18,7 @@ from sngrok.utils import (
 )
 
 
-def get_optimizer(config, params):
+def get_optimizer(params, config):
     name = config.pop('algorithm')
     if name == 'adam':
         optimizer = torch.optim.AdamW(
