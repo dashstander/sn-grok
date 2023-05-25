@@ -18,6 +18,23 @@ from sngrok.utils import (
 )
 
 
+def get_optimizer(config, params):
+    name = config.pop('algorithm')
+    if name == 'adam':
+        optimizer = torch.optim.AdamW(
+            params,
+            **config
+        )
+    elif name == 'sgd':
+        optimizer = torch.optim.SGD(
+            params,
+            **config
+        )
+    else:
+        raise NotImplementedError(f'No optimizer named {name}')
+    return optimizer
+
+
 def calc_power_contributions(tensor, n):
     total_power = (tensor ** 2).mean(dim=0)
     fourier_transform = slow_ft_1d(tensor, n)
@@ -25,8 +42,7 @@ def calc_power_contributions(tensor, n):
     power_contribs = {irrep: power / total_power for irrep, power in irrep_power.items()}
     irreps = list(power_contribs.keys())
     power_vals = torch.cat([power_contribs[irrep].unsqueeze(0) for irrep in irreps], dim=0)
-    val_data = pl.DataFrame(power_vals.detach().cpu().numpy(), schema=[f'dim{i}' for i in range(256)])
-    val_data.insert_at_idx(
+    val_data = pl.DataFrame(power_vals.detach().cpu().numpy(), schema=[f'dim{i}' for i in range(power_vals.shape[1])])    val_data.insert_at_idx(
         0,
         pl.Series('irrep', [str(i) for i in irreps])
     )
@@ -157,15 +173,15 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
             msg.update(left_powers)
             msg.update(right_powers)
-            freq_data.melt(
-                id_vars=['epoch', 'layer', 'irrep']
-            ).write_parquet(checkpoint_dir / f'fourier{epoch}.parquet')
 
         if epoch in checkpoint_epochs:
             train_loss_data.append(train_loss)
             test_loss_data.append(test_loss)
             model_state = copy.deepcopy(model.state_dict())
             opt_state = copy.deepcopy(optimizer.state_dict())
+            freq_data.melt(
+                id_vars=['epoch', 'layer', 'irrep']
+            ).write_parquet(checkpoint_dir / f'fourier{epoch}.parquet')
             torch.save(
                 {
                     "model": model_state,
@@ -215,11 +231,9 @@ def main():
     ).write_parquet(checkpoint_dir / 'data.parquet')
 
     model = SnMLP.from_config(config['model']).to(device)
-    optimizer = torch.optim.AdamW(
+    optimizer = get_optimizer(
         model.parameters(),
-        lr=config['optimizer']['lr'],
-        weight_decay=config['optimizer']['wd'],
-        betas=config['optimizer']['betas']
+        config['optimizer']
     )
 
     wandb.init(
