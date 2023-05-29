@@ -43,8 +43,8 @@ class SnMLP(HookedRootModule):
     def from_config(cls, config):
         vocab = config['vocab_size']
         embed_dim = config['embed_dim']
-        model_dim = config['model_dim']
-        return cls(vocab, embed_dim, model_dim)
+        model_dims = config['model_dims']
+        return cls(vocab, embed_dim, model_dims)
     
     def forward(self, x, y):
         lembed = self.hook_lembed(self.lembed(x))
