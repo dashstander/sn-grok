@@ -35,6 +35,10 @@ def get_optimizer(params, config):
     return optimizer
 
 
+def get_model(config):
+    pass
+
+
 def calc_power_contributions(tensor, n):
     total_power = (tensor ** 2).mean(dim=0)
     fourier_transform = slow_ft_1d(tensor, n)
