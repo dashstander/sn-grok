@@ -55,7 +55,7 @@ def calc_power_contributions(tensor, n):
 
 
 def fourier_analysis(model, n, epoch):
-    W = model.linear.weight
+    W = model.mlp.layers[0].weight
     lembeds = model.lembed.weight.T
     rembeds = model.rembed.weight.T
     embed_dim = lembeds.shape[0]
