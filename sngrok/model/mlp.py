@@ -9,10 +9,10 @@ class MLP(HookedRootModule):
 
     def __init__(self, model_dims):
         super().__init__()
-        self.layers = [
+        self.layers = nn.ModuleList([
             nn.Linear(in_features=d1, out_features=d2)
             for d1, d2 in pairwise(model_dims)
-        ]
+        ])
         self.hooks = [HookPoint() for _ in self.layers]
     
     def forward(self, x):
