@@ -52,6 +52,6 @@ class SnMLP(HookedRootModule):
         lembed = self.hook_lembed(self.lembed(x))
         rembed = self.hook_rembed(self.rembed(y))
         permrep = torch.concatenate([lembed, rembed], dim=-1)
-        hidden = self.hook_linear(self.linear(permrep))
+        hidden = relu(self.hook_linear(self.linear(permrep)))
         logits = self.hook_unembed(self.unembed(hidden))
         return logits
