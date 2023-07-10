@@ -35,6 +35,21 @@ def cycle_to_one_line(cycle_rep: list[tuple[int]]) -> tuple[int]:
     return tuple(sigma)
 
 
+def add_fixed_to_cycle(cycle, n):
+    missing = []
+    
+    for i in range(n):
+        if i not in cycle:
+            missing.append((i,))
+    return [cycle] + missing
+
+
+def three_cycle_to_one_line(i, n):
+    cycle = (0, 1, i)
+    cycle = add_fixed_to_cycle(cycle, n)
+    return cycle_to_one_line(cycle)
+
+
 class Symmetric:
     def __init__(self, n: int):
         self.elements = Permutation.full_group(n)
@@ -46,7 +61,9 @@ class Alternating:
     def __init__(self, n: int):
         if n < 3:
             raise ValueError('No alternating subgroup of S2')
-        self.generators = [tuple([1, 2] + [i]) for i in range(3, n)]
+        self.generators = [
+            three_cycle_to_one_line(i, n) for i in range(2, n)
+        ]
         self.elements = generate_subgroup(self.generators)
         self.order = math.factorial(n) / 2
 
@@ -58,7 +75,9 @@ class Dihedral:
             raise ValueError('We start with triangles')
         self.order = 2 * n
         n_cycle = tuple([n - 1] + [i for i in range(n - 1)])
-        self.generators = [(n - 2, n - 1), cycle_to_one_line([n_cycle])]
+        self.generators = [
+            (n - 2, n - 1), cycle_to_one_line([n_cycle])
+        ]
         self.elements = generate_subgroup(self.generators)
 
 
