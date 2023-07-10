@@ -205,7 +205,8 @@ def main():
     config = Config().from_disk(args.config)
     registry_objects = registry.resolve(config)
 
-    group_mult_table = registry_objects['group']
+    group = registry_objects['group']
+    group_mult_table = group.make_multiplication_table()
 
     device = torch.device('cuda')
 

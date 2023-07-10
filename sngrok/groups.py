@@ -50,42 +50,6 @@ def three_cycle_to_one_line(i, n):
     return cycle_to_one_line(cycle)
 
 
-class Symmetric:
-    def __init__(self, n: int):
-        self.elements = Permutation.full_group(n)
-        self.order = math.factorial(n)
-
-
-class Alternating:
-
-    def __init__(self, n: int):
-        if n < 3:
-            raise ValueError('No alternating subgroup of S2')
-        self.generators = [
-            three_cycle_to_one_line(i, n) for i in range(2, n)
-        ]
-        self.elements = [
-            Permutation(p) for p in generate_subgroup(self.generators)
-        ]
-        self.order = math.factorial(n) / 2
-
-
-class Dihedral:
-
-    def __init__(self, n: int):
-        if n < 3:
-            raise ValueError('We start with triangles')
-        self.order = 2 * n
-        n_cycle = tuple([n - 1] + [i for i in range(n - 1)])
-        self.generators = [
-            add_fixed_to_cycle((n - 2, n - 1), n),
-            cycle_to_one_line([n_cycle])
-        ]
-        self.elements = self.elements = [
-            Permutation(p) for p in generate_subgroup(self.generators)
-        ]
-
-
 def _make_multiplication_table(all_permutations):
     index = {perm.sigma : i for i, perm in enumerate(all_permutations)}
     left_perms = []
@@ -112,21 +76,59 @@ def _make_multiplication_table(all_permutations):
     })
 
 
+class Group:
+
+    def make_multiplication_table(self):
+        return _make_multiplication_table(self.elements)
+
+
+
+class Symmetric(Group):
+    def __init__(self, n: int):
+        self.elements = Permutation.full_group(n)
+        self.order = math.factorial(n)
+
+
+class Alternating(Group):
+
+    def __init__(self, n: int):
+        if n < 3:
+            raise ValueError('No alternating subgroup of S2')
+        self.generators = [
+            three_cycle_to_one_line(i, n) for i in range(2, n)
+        ]
+        self.elements = [
+            Permutation(p) for p in generate_subgroup(self.generators)
+        ]
+        self.order = math.factorial(n) / 2
+
+
+class Dihedral(Group):
+
+    def __init__(self, n: int):
+        if n < 3:
+            raise ValueError('We start with triangles')
+        self.order = 2 * n
+        n_cycle = tuple([n - 1] + [i for i in range(n - 1)])
+        self.generators = [
+            add_fixed_to_cycle((n - 2, n - 1), n),
+            cycle_to_one_line([n_cycle])
+        ]
+        self.elements = self.elements = [
+            Permutation(p) for p in generate_subgroup(self.generators)
+        ]
+
 
 @group_registry.register("Sn")
 def sn_mult_table(n: int):
-    Sn = Symmetric(n)
-    return _make_multiplication_table(Sn.elements)
+    return Symmetric(n)
 
 
 @group_registry.register("An")
 def sn_mult_table(n: int):
-    An = Alternating(n)
-    return _make_multiplication_table(An.elements)
+    return Alternating(n)
 
 
 @group_registry.register("Dn")
 def sn_mult_table(n: int):
-    Dn = Dihedral(n)
-    return _make_multiplication_table(Dn.elements)
-    
+    return Dihedral(n)
