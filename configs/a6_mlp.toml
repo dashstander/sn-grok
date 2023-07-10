@@ -13,7 +13,7 @@ run_dir = "s6_50"
 
 
 [group]
-@groups = "groups.Alternating"
+@groups = "groups.An"
 n = ${train.n}
 
 [model]
