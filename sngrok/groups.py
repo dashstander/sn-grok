@@ -1,5 +1,4 @@
 import catalogue
-from confection import registry
 from itertools import pairwise, product
 import math
 import polars as pl
@@ -90,19 +89,19 @@ def _make_multiplication_table(all_permutations):
 
 
 
-@group_registry.register("groups", "Sn")
+@group_registry.register("Sn")
 def sn_mult_table(n: int):
     Sn = Symmetric(n)
     return _make_multiplication_table(Sn.elements)
 
 
-@group_registry.register("groups", "An")
+@group_registry.register("An")
 def sn_mult_table(n: int):
     An = Alternating(n)
     return _make_multiplication_table(An.elements)
 
 
-@group_registry.register("groups", "Dn")
+@group_registry.register("Dn")
 def sn_mult_table(n: int):
     Dn = Dihedral(n)
     return _make_multiplication_table(Dn.elements)
