@@ -3,6 +3,7 @@ from itertools import pairwise, product
 import math
 import polars as pl
 from sngrok.permutations import Permutation
+from sngrok.fourier import slow_an_ft_1d, slow_sn_ft_1d
 
 
 group_registry = catalogue.create("groups", entry_points=False)
@@ -85,13 +86,18 @@ class Group:
 
 class Symmetric(Group):
     def __init__(self, n: int):
+        self.n = n
         self.elements = Permutation.full_group(n)
         self.order = math.factorial(n)
+
+    def fourier_transform(self, tensor):
+        return slow_sn_ft_1d(tensor, self.n)
 
 
 class Alternating(Group):
 
     def __init__(self, n: int):
+        self.n = n
         if n < 3:
             raise ValueError('No alternating subgroup of S2')
         self.generators = [
@@ -101,6 +107,9 @@ class Alternating(Group):
             Permutation(p) for p in generate_subgroup(self.generators)
         ]
         self.order = math.factorial(n) / 2
+
+    def fourier_transform(self, tensor):
+        return slow_an_ft_1d(tensor, self.n)
 
 
 class Dihedral(Group):
@@ -117,6 +126,9 @@ class Dihedral(Group):
         self.elements = self.elements = [
             Permutation(p) for p in generate_subgroup(self.generators)
         ]
+
+    def fourier_transform(self, tensor):
+        raise NotImplementedError
 
 
 @group_registry.register("Sn")

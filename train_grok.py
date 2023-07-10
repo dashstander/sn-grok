@@ -6,8 +6,8 @@ from torch.utils.data import DataLoader, TensorDataset
 import tqdm.auto as tqdm
 import wandb
 
-from sngrok.fourier import slow_ft_1d, calc_power
-from sngrok.groups import group_registry
+from sngrok.fourier import slow_an_ft_1d, slow_sn_ft_1d, calc_power
+from sngrok.groups import group_registry, Symmetric, Alternating
 from sngrok.model import SnMLP
 from sngrok.utils import (
     calculate_checkpoint_epochs,
@@ -40,10 +40,10 @@ def get_model(config):
     pass
 
 
-def calc_power_contributions(tensor, n, group_order):
+def calc_power_contributions(tensor, group):
     total_power = (tensor ** 2).mean(dim=0)
-    fourier_transform = slow_ft_1d(tensor, n)
-    irrep_power = calc_power(fourier_transform, group_order)
+    fourier_transform = group.fourier_transform(tensor)
+    irrep_power = calc_power(fourier_transform, group.n)
     power_contribs = {irrep: power / total_power for irrep, power in irrep_power.items()}
     irreps = list(power_contribs.keys())
     power_vals = torch.cat([power_contribs[irrep].unsqueeze(0) for irrep in irreps], dim=0)
@@ -55,15 +55,15 @@ def calc_power_contributions(tensor, n, group_order):
     return val_data, power_contribs
 
 
-def fourier_analysis(model, n, group_order, epoch):
+def fourier_analysis(model, group, epoch):
     W = model.linear.weight
     lembeds = model.lembed.weight.T
     rembeds = model.rembed.weight.T
     embed_dim = lembeds.shape[0]
     left_linear = (W[:, :embed_dim] @ lembeds).T
     right_linear = (W[:, embed_dim:] @ rembeds).T
-    lembed_power_df, lpowers = calc_power_contributions(left_linear, n, group_order)
-    rembed_power_df, rpowers = calc_power_contributions(right_linear, n,)
+    lembed_power_df, lpowers = calc_power_contributions(left_linear, group)
+    rembed_power_df, rpowers = calc_power_contributions(right_linear, group)
     lembed_power_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * lembed_power_df.shape[0]))
     rembed_power_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * rembed_power_df.shape[0]))
     df = pl.concat([lembed_power_df, rembed_power_df], how='vertical')
@@ -129,10 +129,8 @@ def test_forward(model, dataloader):
     return total_loss.item()
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, config):
+def train(model, optimizer, train_dataloader, test_dataloader, config, group):
     train_config = config['train']
-    n = config['train']['n']
-    group_order = config['model']['vocab_size']
     checkpoint_dir, _ = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     model_checkpoints = []
@@ -157,7 +155,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
         }
 
         if epoch % 1000 == 0:
-            freq_data, left_powers, right_powers = fourier_analysis(model, n, group_order, epoch)
+            freq_data, left_powers, right_powers = fourier_analysis(model, group, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
             right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
             msg.update(left_powers)
@@ -243,7 +241,8 @@ def main():
             optimizer,
             train_data,
             test_data,
-            config
+            config,
+            group
         )
     except KeyboardInterrupt:
         pass
