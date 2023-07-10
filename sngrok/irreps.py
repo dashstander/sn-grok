@@ -109,6 +109,11 @@ class SnIrrep:
         matrices = self.matrix_representations()
         tensors = [torch.asarray(matrices[perm.sigma]).unsqueeze(0) for perm in self.permutations]
         return torch.concatenate(tensors, dim=0).squeeze()
+    
+    def alternating_matrix_tensor(self):
+        matrices = self.matrix_representations()
+        tensors = [torch.asarray(matrices[perm.sigma]).unsqueeze(0) for perm in self.permutations if perm.parity == 0]
+        return torch.concatenate(tensors, dim=0).squeeze()
 
 
 class TrivialRep(SnIrrep):

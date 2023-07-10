@@ -1,6 +1,8 @@
-import torch
-from itertools import product
 import functorch
+from itertools import product
+import math
+import torch
+
 
 from .irreps import SnIrrep
 from .permutations import Permutation
@@ -48,7 +50,7 @@ def calc_power(ft, group_order):
     return {k: (frob(v) / group_order**2)  for k, v in ft.items()}
 
 
-def slow_ft_1d(fn_vals, n):
+def slow_sn_ft_1d(fn_vals, n):
     all_partitions = generate_partitions(n)
     all_irreps = [SnIrrep(n, p) for p in all_partitions]
     results = {}
@@ -58,8 +60,18 @@ def slow_ft_1d(fn_vals, n):
     return results
 
 
+def slow_an_ft_1d(fn_vals, n):
+    all_partitions = generate_partitions(n)
+    all_irreps = [SnIrrep(n, p) for p in all_partitions]
+    results = {}
+    for irrep in all_irreps:
+        matrices = irrep.alternating_matrix_tensor().to(fn_vals.device).to(torch.float32)
+        results[irrep.shape] = fft_sum(fn_vals, matrices).squeeze()
+    return results
 
-def slow_ft_2d(fn_vals, n):
+
+
+def slow_sn_ft_2d(fn_vals, n):
     all_partitions = generate_partitions(n)
     all_irreps = [SnIrrep(n, p) for p in all_partitions]
     results = {}

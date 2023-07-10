@@ -1,6 +1,5 @@
 from confection import Config, registry
 import copy
-import math
 import polars as pl
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -41,10 +40,10 @@ def get_model(config):
     pass
 
 
-def calc_power_contributions(tensor, n):
+def calc_power_contributions(tensor, n, group_order):
     total_power = (tensor ** 2).mean(dim=0)
     fourier_transform = slow_ft_1d(tensor, n)
-    irrep_power = calc_power(fourier_transform, math.factorial(n))
+    irrep_power = calc_power(fourier_transform, group_order)
     power_contribs = {irrep: power / total_power for irrep, power in irrep_power.items()}
     irreps = list(power_contribs.keys())
     power_vals = torch.cat([power_contribs[irrep].unsqueeze(0) for irrep in irreps], dim=0)
@@ -56,15 +55,15 @@ def calc_power_contributions(tensor, n):
     return val_data, power_contribs
 
 
-def fourier_analysis(model, n, epoch):
+def fourier_analysis(model, n, group_order, epoch):
     W = model.linear.weight
     lembeds = model.lembed.weight.T
     rembeds = model.rembed.weight.T
     embed_dim = lembeds.shape[0]
     left_linear = (W[:, :embed_dim] @ lembeds).T
     right_linear = (W[:, embed_dim:] @ rembeds).T
-    lembed_power_df, lpowers = calc_power_contributions(left_linear, n)
-    rembed_power_df, rpowers = calc_power_contributions(right_linear, n)
+    lembed_power_df, lpowers = calc_power_contributions(left_linear, n, group_order)
+    rembed_power_df, rpowers = calc_power_contributions(right_linear, n,)
     lembed_power_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * lembed_power_df.shape[0]))
     rembed_power_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * rembed_power_df.shape[0]))
     df = pl.concat([lembed_power_df, rembed_power_df], how='vertical')
@@ -133,6 +132,7 @@ def test_forward(model, dataloader):
 def train(model, optimizer, train_dataloader, test_dataloader, config):
     train_config = config['train']
     n = config['train']['n']
+    group_order = config['model']['vocab_size']
     checkpoint_dir, _ = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     model_checkpoints = []
@@ -157,7 +157,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
         }
 
         if epoch % 1000 == 0:
-            freq_data, left_powers, right_powers = fourier_analysis(model, n, epoch)
+            freq_data, left_powers, right_powers = fourier_analysis(model, n, group_order, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
             right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
             msg.update(left_powers)
