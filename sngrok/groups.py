@@ -94,7 +94,7 @@ def _make_multiplication_table(all_permutations):
     right_perms = []
     target_perms = []
     target_index = []
-    for lperm, rperm in product(all_permutations):
+    for lperm, rperm in product(all_permutations, all_permutations):
         left_perms.append(str(lperm.sigma))
         right_perms.append(str(rperm.sigma))
         target = lperm * rperm
