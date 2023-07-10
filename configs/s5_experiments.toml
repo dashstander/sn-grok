@@ -10,7 +10,7 @@ device = "cuda"
 
 
 [group]
-@groups = "groups.Sn"
+@groups = "Sn"
 n = ${train.n}
 
 

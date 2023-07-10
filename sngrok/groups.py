@@ -64,7 +64,9 @@ class Alternating:
         self.generators = [
             three_cycle_to_one_line(i, n) for i in range(2, n)
         ]
-        self.elements = generate_subgroup(self.generators)
+        self.elements = [
+            Permutation(p) for p in generate_subgroup(self.generators)
+        ]
         self.order = math.factorial(n) / 2
 
 
@@ -76,9 +78,12 @@ class Dihedral:
         self.order = 2 * n
         n_cycle = tuple([n - 1] + [i for i in range(n - 1)])
         self.generators = [
-            (n - 2, n - 1), cycle_to_one_line([n_cycle])
+            add_fixed_to_cycle((n - 2, n - 1), n),
+            cycle_to_one_line([n_cycle])
         ]
-        self.elements = generate_subgroup(self.generators)
+        self.elements = self.elements = [
+            Permutation(p) for p in generate_subgroup(self.generators)
+        ]
 
 
 def _make_multiplication_table(all_permutations):

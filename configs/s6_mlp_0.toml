@@ -13,7 +13,7 @@ run_dir = "s6_50"
 
 
 [group]
-@groups = "groups.Sn"
+@groups = "Sn"
 n = ${train.n}
 
 [model]
