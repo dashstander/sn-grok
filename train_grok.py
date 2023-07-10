@@ -1,4 +1,4 @@
-from confection import Config
+from confection import Config, registry
 import copy
 import math
 import polars as pl
@@ -70,7 +70,6 @@ def fourier_analysis(model, n, epoch):
     return df, lpowers, rpowers
 
 
-
 def train_test_split(df, frac_train, rng):
     group_order = df.shape[0]
     num_train_samples = int(group_order * frac_train)
@@ -80,27 +79,10 @@ def train_test_split(df, frac_train, rng):
     return df.with_columns(zeroes.alias('in_train'))
 
 
-def get_subgroup(df, parity):
-    if parity == 'all':
-        return df
-    elif parity == 0:
-        return df.filter(
-            (pl.col('parity') == 0) & (pl.col('parity_right') == 0)
-        )
-    elif parity == 1:
-        return df.filter(
-            (pl.col('parity') == 1) | (pl.col('parity_right') == 1)
-        )
-    else:
-        raise ValueError('Parity can only be 0, 1, or "all". Not {parity}')
-
-
-def get_dataloaders(config, rng, device):
+def get_dataloaders(group_mult_table, config, rng, device):
     frac_train = config['frac_train']
-    _, sn_mult_table = make_permutation_dataset(config['n'])
-    sn_mult_table = train_test_split(sn_mult_table, frac_train, rng)
-    sn_mult_table = get_subgroup(sn_mult_table, config['parity'])
-    sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
+    group_mult_table = train_test_split(group_mult_table, frac_train, rng)
+    sn_split = group_mult_table.partition_by('in_train', as_dict=True)
     train_lperms = torch.as_tensor(sn_split[1].select('index_left').to_numpy(), dtype=torch.int64, device=device)
     train_rperms = torch.as_tensor(sn_split[1].select('index_right').to_numpy(), dtype=torch.int64, device=device)
     train_targets = torch.as_tensor(sn_split[1].select('index_target').to_numpy(), dtype=torch.int64, device=device)
@@ -112,7 +94,7 @@ def get_dataloaders(config, rng, device):
     train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
     test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
 
-    return train_dataloader, test_dataloader, sn_mult_table
+    return train_dataloader, test_dataloader, group_mult_table
 
 
 def loss_fn(logits, labels):
@@ -172,7 +154,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             'loss/test': test_loss
         }
 
-        if epoch % 100 == 0:
+        if epoch % 1000 == 0:
             freq_data, left_powers, right_powers = fourier_analysis(model, n, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
             right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
@@ -219,12 +201,16 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
 def main():
     args = parse_arguments()
     config = Config().from_disk(args.config)
+    registry_objects = registry.resolve(config)
+
+    group_mult_table = registry_objects['group']
 
     device = torch.device('cuda')
 
     np_rng = set_seeds(config['train']['seed'])
 
     train_data, test_data, mult_table = get_dataloaders(
+        group_mult_table,
         config['train'],
         np_rng,
         device

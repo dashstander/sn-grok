@@ -63,9 +63,22 @@ def _generate_partitions(n):
     return partitions
 
 
+def check_parity(partition):
+    even_cycles = [c for c in partition if (c % 2 == 0)]
+    return len(even_cycles) % 2
+
+
 def generate_partitions(n):
     return sorted(list(set(_generate_partitions(n))))
 
+
+def generate_even_partitions(n):
+    partitions = generate_partitions(n)
+    return [
+        p for p in partitions 
+        if check_parity(p) == 0
+    ]
+    
 
 @total_ordering
 class YoungTableau:
