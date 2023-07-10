@@ -8,7 +8,7 @@ import tqdm.auto as tqdm
 import wandb
 
 from sngrok.fourier import slow_ft_1d, calc_power
-from sngrok.permutations import make_permutation_dataset
+from sngrok.groups import group_registry
 from sngrok.model import SnMLP
 from sngrok.utils import (
     calculate_checkpoint_epochs,
@@ -16,6 +16,8 @@ from sngrok.utils import (
     set_seeds,
     setup_checkpointing,
 )
+
+registry.groups = group_registry
 
 
 def get_optimizer(params, config):

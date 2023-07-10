@@ -6,7 +6,7 @@ import polars as pl
 from sngrok.permutations import Permutation
 
 
-registry.optimizers = catalogue.create("groups", entry_points=False)
+group_registry = catalogue.create("groups", entry_points=False)
 
 
 def generate_subgroup(generators: list[tuple[int]]) -> list[tuple[int]]:
@@ -90,19 +90,19 @@ def _make_multiplication_table(all_permutations):
 
 
 
-@registry.register("groups", "Sn")
+@group_registry.register("groups", "Sn")
 def sn_mult_table(n: int):
     Sn = Symmetric(n)
     return _make_multiplication_table(Sn.elements)
 
 
-@registry.register("groups", "An")
+@group_registry.register("groups", "An")
 def sn_mult_table(n: int):
     An = Alternating(n)
     return _make_multiplication_table(An.elements)
 
 
-@registry.register("groups", "Dn")
+@group_registry.register("groups", "Dn")
 def sn_mult_table(n: int):
     Dn = Dihedral(n)
     return _make_multiplication_table(Dn.elements)
