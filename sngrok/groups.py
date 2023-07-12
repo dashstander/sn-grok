@@ -1,9 +1,15 @@
 import catalogue
+from functools import reduce
 from itertools import pairwise, product
 import math
+import numpy as np
+from operator import mul
 import polars as pl
 from sngrok.permutations import Permutation
-from sngrok.fourier import slow_an_ft_1d, slow_sn_ft_1d
+from sngrok.product_permutations import ProductPermutation
+from sngrok.fourier import slow_an_ft_1d, slow_sn_ft_1d, slow_product_sn_ft
+from sngrok.tableau import conjugate_partition, generate_partitions
+from sngrok.irreps import SnIrrep
 
 
 group_registry = catalogue.create("groups", entry_points=False)
@@ -92,6 +98,10 @@ class Symmetric(Group):
 
     def fourier_transform(self, tensor):
         return slow_sn_ft_1d(tensor, self.n)
+    
+    def irreps(self):
+        partitions = generate_partitions(self.n)
+        return {p: SnIrrep(self.n, p) for p in partitions}
 
 
 class Alternating(Group):
@@ -110,6 +120,42 @@ class Alternating(Group):
 
     def fourier_transform(self, tensor):
         return slow_an_ft_1d(tensor, self.n)
+    
+    def irreps(self):
+        all_partitions = set()
+        partitions = []
+        for p in generate_partitions(self.n):
+            if p in all_partitions:
+                continue
+            else:
+                partitions.append(p)
+                all_partitions.add(p)
+                all_partitions.add(conjugate_partition(p))
+        return {
+            p: SnIrrep(self.n, p).matrix_representations() for p in partitions
+        }
+    
+
+class ProductSymmetric(Group):
+
+    def __init__(self, ns: list[int]):
+        self.ns = ns
+        self.elements = ProductPermutation.full_group(ns)
+        self.order = reduce(mul, [math.factorial(x) for x in ns])
+    
+    def irreps(self):
+        irreps = {}
+        for parts in product(*[generate_partitions(n) for n in self.ns]):
+            sn_irreps = [SnIrrep(n, p).matrix_representations() for n, p in zip(self.ns, parts)]
+            full_mats = {}
+            for perms in self.elements:
+                matrices = [irrep[p] for irrep, p in zip(sn_irreps, perms.sigma)]
+                full_mats[perms.sigma] = reduce(np.kron, matrices)
+            irreps[parts] = full_mats
+        return irreps
+    
+    def fourier_transform(self, tensor):
+        return slow_product_sn_ft(tensor, self.irreps(), self.ns)
 
 
 class Dihedral(Group):
@@ -132,15 +178,20 @@ class Dihedral(Group):
 
 
 @group_registry.register("Sn")
-def sn_mult_table(n: int):
+def sn(n: int):
     return Symmetric(n)
 
 
 @group_registry.register("An")
-def sn_mult_table(n: int):
+def an(n: int):
     return Alternating(n)
 
 
 @group_registry.register("Dn")
-def sn_mult_table(n: int):
+def dn(n: int):
     return Dihedral(n)
+
+
+@group_registry.register("Dn")
+def prod_sn(ns: list[int]):
+    return ProductSymmetric(ns)

@@ -6,8 +6,8 @@ from torch.utils.data import DataLoader, TensorDataset
 import tqdm.auto as tqdm
 import wandb
 
-from sngrok.fourier import slow_an_ft_1d, slow_sn_ft_1d, calc_power
-from sngrok.groups import group_registry, Symmetric, Alternating
+from sngrok.fourier import calc_power
+from sngrok.groups import group_registry
 from sngrok.model import SnMLP
 from sngrok.utils import (
     calculate_checkpoint_epochs,
@@ -43,7 +43,7 @@ def get_model(config):
 def calc_power_contributions(tensor, group):
     total_power = (tensor ** 2).mean(dim=0)
     fourier_transform = group.fourier_transform(tensor)
-    irrep_power = calc_power(fourier_transform, group.n)
+    irrep_power = calc_power(fourier_transform, group.order)
     power_contribs = {irrep: power / total_power for irrep, power in irrep_power.items()}
     irreps = list(power_contribs.keys())
     power_vals = torch.cat([power_contribs[irrep].unsqueeze(0) for irrep in irreps], dim=0)

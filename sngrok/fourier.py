@@ -1,11 +1,9 @@
 import functorch
 from itertools import product
-import math
 import torch
-
-
 from .irreps import SnIrrep
 from .permutations import Permutation
+from .product_permutations import ProductPermutation
 from .tableau import generate_partitions
 
 
@@ -70,7 +68,6 @@ def slow_an_ft_1d(fn_vals, n):
     return results
 
 
-
 def slow_sn_ft_2d(fn_vals, n):
     all_partitions = generate_partitions(n)
     all_irreps = [SnIrrep(n, p) for p in all_partitions]
@@ -85,6 +82,18 @@ def slow_sn_ft_2d(fn_vals, n):
         mats = mats.to(torch.float32)
         mats = mats.to(fn_vals.device)
         results[(lirrep.shape, rirrep.shape)] = fft_sum(fn_vals, mats).squeeze()
+    return results
+
+
+def slow_product_sn_ft(fn_vals, irreps, ns):
+    full_group = [p.sigma for p in ProductPermutation.full_group(ns)]
+    results = {}
+    for irrep, matrices in irreps.items():
+        tensor = torch.concat(
+            [torch.asarray(matrices[perm]).unsqueeze(0) for perm in full_group],
+            dim=0
+        )
+        results[irrep] = fft_sum(fn_vals, tensor).squeeze()
     return results
 
 
