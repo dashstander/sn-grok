@@ -18,6 +18,10 @@ class Dihedral:
     def __hash__(self):
         return hash(str(self))
     
+    @property
+    def sigma(self):
+        return self.rot, self.ref
+    
     @classmethod
     def full_group(cls, n):
         return [
