@@ -68,3 +68,7 @@ class DihedralIrrep:
         ):
             subgroup = generate_subgroup(self.conjugacy_class, self.n)
             return self._subgroup_irrep(subgroup)
+        else:
+            raise ValueError(
+                f'Somehow {self.conjugacy_class} is not a proper conjugacy class....'
+            )
