@@ -169,17 +169,7 @@ class DihedralGroup:
         if n < 3:
             raise ValueError('We start with triangles')
         self.order = 2 * n
-<<<<<<< HEAD
-        n_cycle = tuple([n - 1] + [i for i in range(n - 1)])
-        self.generators = [
-            add_fixed_to_cycle((n - 2, n - 1), n),
-            cycle_to_one_line([n_cycle])
-        ]
-        self.elements = self.elements = [
-            Permutation(p) for p in generate_subgroup(self.generators)
-        ]
-        self.group = "dihedral"
-=======
+
         self.elements = Dihedral.full_group(n)
     
     def irreps(self):
@@ -187,7 +177,6 @@ class DihedralGroup:
         return {
             conj: DihedralIrrep(self.n, conj).matrix_representations() for conj in conj_classes
         }
->>>>>>> 113cb55f60bc3cf94721321f6475c92826ac6d85
 
     def fourier_transform(self, tensor):
         raise NotImplementedError
