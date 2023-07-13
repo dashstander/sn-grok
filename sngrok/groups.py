@@ -5,11 +5,13 @@ import math
 import numpy as np
 from operator import mul
 import polars as pl
+from sngrok.dihedral import Dihedral
 from sngrok.permutations import Permutation
 from sngrok.product_permutations import ProductPermutation
 from sngrok.fourier import slow_an_ft_1d, slow_sn_ft_1d, slow_product_sn_ft
 from sngrok.tableau import conjugate_partition, generate_partitions
 from sngrok.irreps import SnIrrep
+from sngrok.dihedral_irreps import DihedralIrrep, dihedral_conjugacy_classes
 
 
 group_registry = catalogue.create("groups", entry_points=False)
@@ -83,14 +85,14 @@ def _make_multiplication_table(all_permutations):
     })
 
 
-class Group:
+class PermutationGroup:
 
     def make_multiplication_table(self):
         return _make_multiplication_table(self.elements)
 
 
 
-class Symmetric(Group):
+class Symmetric(PermutationGroup):
     def __init__(self, n: int):
         self.n = n
         self.elements = Permutation.full_group(n)
@@ -105,7 +107,7 @@ class Symmetric(Group):
         return {p: SnIrrep(self.n, p) for p in partitions}
 
 
-class Alternating(Group):
+class Alternating(PermutationGroup):
 
     def __init__(self, n: int):
         self.n = n
@@ -138,7 +140,7 @@ class Alternating(Group):
         }
     
 
-class ProductSymmetric(Group):
+class ProductSymmetric(PermutationGroup):
 
     def __init__(self, ns: list[int]):
         self.ns = ns
@@ -161,12 +163,13 @@ class ProductSymmetric(Group):
         return slow_product_sn_ft(tensor, self.irreps(), self.ns)
 
 
-class Dihedral(Group):
+class DihedralGroup:
 
     def __init__(self, n: int):
         if n < 3:
             raise ValueError('We start with triangles')
         self.order = 2 * n
+<<<<<<< HEAD
         n_cycle = tuple([n - 1] + [i for i in range(n - 1)])
         self.generators = [
             add_fixed_to_cycle((n - 2, n - 1), n),
@@ -176,9 +179,44 @@ class Dihedral(Group):
             Permutation(p) for p in generate_subgroup(self.generators)
         ]
         self.group = "dihedral"
+=======
+        self.elements = Dihedral.full_group(n)
+    
+    def irreps(self):
+        conj_classes = dihedral_conjugacy_classes(self.n)
+        return {
+            conj: DihedralIrrep(self.n, conj).matrix_representations() for conj in conj_classes
+        }
+>>>>>>> 113cb55f60bc3cf94721321f6475c92826ac6d85
 
     def fourier_transform(self, tensor):
         raise NotImplementedError
+    
+    def make_multiplication_table(self):
+        index = {r.sigma : i for i, r in enumerate(self.elements)}
+        left_elements = []
+        lindex = []
+        rindex = []
+        right_elements = []
+        target_elements = []
+        target_index = []
+        for lr, rr in product(self.elements, self.elements):
+            left_elements.append(str(lr.sigma))
+            right_elements.append(str(rr.sigma))
+            target = lr * rr
+            target_elements.append(str(target.sigma))
+            lindex.append(index[lr.sigma])
+            rindex.append(index[rr.sigma])
+            target_index.append(index[target.sigma])
+        return pl.DataFrame({
+            "index_left": lindex,
+            "index_right": rindex,
+            "index_target": target_index,
+            "element_left": left_elements,
+            "elemenet_right": right_elements,
+            "element_tatrget": target_elements 
+        })
+
 
 
 @group_registry.register("Sn")
@@ -196,6 +234,6 @@ def dn(n: int):
     return Dihedral(n)
 
 
-@group_registry.register("Dn")
+@group_registry.register("ProdSn")
 def prod_sn(ns: list[int]):
     return ProductSymmetric(ns)
