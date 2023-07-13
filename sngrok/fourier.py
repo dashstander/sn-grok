@@ -88,9 +88,10 @@ def slow_sn_ft_2d(fn_vals, n):
 def slow_product_sn_ft(fn_vals, irreps, ns):
     full_group = [p.sigma for p in ProductPermutation.full_group(ns)]
     results = {}
+    device = fn_vals.device()
     for irrep, matrices in irreps.items():
         tensor = torch.concat(
-            [torch.asarray(matrices[perm]).unsqueeze(0) for perm in full_group],
+            [torch.asarray(matrices[perm], dtype=torch.float32, device=device).unsqueeze(0) for perm in full_group],
             dim=0
         )
         results[irrep] = fft_sum(fn_vals, tensor).squeeze()
