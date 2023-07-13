@@ -1,0 +1,34 @@
+[train]
+frac_train = 0.50
+batch_size = 16384
+num_epochs = 200000
+grok_threshold = 0.00001
+checkpoint_every = 10000
+extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512, 1024, 2048, 4096, 8192]
+device = "cuda"
+seed = 0
+checkpoint_dir = "checkpoints"
+run_dir = "s4xs4_50"
+
+[group]
+@groups = "ProdSn"
+ns = [4, 4]
+
+[model]
+embed_dim = 256
+model_dim = 1024
+vocab_size = 576
+tie_lr = false
+
+
+[optimizer]
+algorithm = "adam"
+lr = 1e-3
+weight_decay = 1.0
+betas = [0.9, 0.98]
+
+
+[wandb]
+entity = "dstander"
+group = "S4xS4_50pcnt"
+project = "grokking_sn"

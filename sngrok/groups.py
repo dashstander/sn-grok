@@ -219,6 +219,6 @@ def dn(n: int):
     return Dihedral(n)
 
 
-@group_registry.register("Dn")
+@group_registry.register("ProdSn")
 def prod_sn(ns: list[int]):
     return ProductSymmetric(ns)
