@@ -144,15 +144,14 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, group):
         optimizer.step()
         optimizer.zero_grad()
 
-        with torch.no_grad():
-            test_loss = test_forward(model, test_dataloader)
+        msg = {'loss/train': train_loss}
+
+        if epoch % 100 == 0:
+            with torch.no_grad():
+                test_loss = test_forward(model, test_dataloader)
+                msg['loss/test'] = test_loss
 
         optimizer.zero_grad()
-
-        msg = {
-            'loss/train': train_loss,
-            'loss/test': test_loss
-        }
 
         if epoch % 1000 == 0:
             freq_data, left_powers, right_powers = fourier_analysis(model, group, epoch)
@@ -180,9 +179,6 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, group):
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
-
-        if test_loss <= train_config['grok_threshold']:
-            break
         
         wandb.log(msg)
 
