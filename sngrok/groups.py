@@ -95,6 +95,7 @@ class Symmetric(Group):
         self.n = n
         self.elements = Permutation.full_group(n)
         self.order = math.factorial(n)
+        self.group = "symmetric"
 
     def fourier_transform(self, tensor):
         return slow_sn_ft_1d(tensor, self.n)
@@ -117,6 +118,7 @@ class Alternating(Group):
             Permutation(p) for p in generate_subgroup(self.generators)
         ]
         self.order = math.factorial(n) / 2
+        self.group = "alternating"
 
     def fourier_transform(self, tensor):
         return slow_an_ft_1d(tensor, self.n)
@@ -132,7 +134,7 @@ class Alternating(Group):
                 all_partitions.add(p)
                 all_partitions.add(conjugate_partition(p))
         return {
-            p: SnIrrep(self.n, p).matrix_representations() for p in partitions
+            p: SnIrrep(self.n, p) for p in partitions
         }
     
 
@@ -142,6 +144,7 @@ class ProductSymmetric(Group):
         self.ns = ns
         self.elements = ProductPermutation.full_group(ns)
         self.order = reduce(mul, [math.factorial(x) for x in ns])
+        self.group = "product"
     
     def irreps(self):
         irreps = {}
@@ -172,6 +175,7 @@ class Dihedral(Group):
         self.elements = self.elements = [
             Permutation(p) for p in generate_subgroup(self.generators)
         ]
+        self.group = "dihedral"
 
     def fourier_transform(self, tensor):
         raise NotImplementedError
