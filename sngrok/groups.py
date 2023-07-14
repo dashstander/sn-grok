@@ -220,7 +220,7 @@ def an(n: int):
 
 @group_registry.register("Dn")
 def dn(n: int):
-    return Dihedral(n)
+    return DihedralGroup(n)
 
 
 @group_registry.register("ProdSn")
