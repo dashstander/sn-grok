@@ -179,7 +179,7 @@ class DihedralGroup:
         }
 
     def fourier_transform(self, tensor):
-        raise slow_dihedral_ft(tensor, self.irreps(), self.n)
+        return slow_dihedral_ft(tensor, self.irreps(), self.n)
     
     def make_multiplication_table(self):
         index = {r.sigma : i for i, r in enumerate(self.elements)}
