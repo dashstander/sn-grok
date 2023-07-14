@@ -8,7 +8,7 @@ def generate_subgroup(generators, n):
     all_elements = set(generators)
     while group_size < len(all_elements):
         group_size = len(all_elements)
-        rotations = [Dihedral(*p) for p in all_elements]
+        rotations = [Dihedral(*p, n) for p in all_elements]
         for r1, r2 in product(rotations, repeat=2):
             r3 = r1 * r2
             all_elements.add(r3.sigma)
