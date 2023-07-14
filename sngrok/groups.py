@@ -8,7 +8,7 @@ import polars as pl
 from sngrok.dihedral import Dihedral
 from sngrok.permutations import Permutation
 from sngrok.product_permutations import ProductPermutation
-from sngrok.fourier import slow_an_ft_1d, slow_sn_ft_1d, slow_product_sn_ft
+from sngrok.fourier import slow_an_ft_1d, slow_dihedral_ft, slow_sn_ft_1d, slow_product_sn_ft
 from sngrok.tableau import conjugate_partition, generate_partitions
 from sngrok.irreps import SnIrrep
 from sngrok.dihedral_irreps import DihedralIrrep, dihedral_conjugacy_classes
@@ -168,8 +168,8 @@ class DihedralGroup:
     def __init__(self, n: int):
         if n < 3:
             raise ValueError('We start with triangles')
+        self.n = n
         self.order = 2 * n
-
         self.elements = Dihedral.full_group(n)
     
     def irreps(self):
@@ -179,7 +179,7 @@ class DihedralGroup:
         }
 
     def fourier_transform(self, tensor):
-        raise NotImplementedError
+        raise slow_dihedral_ft(tensor, self.irreps(), self.n)
     
     def make_multiplication_table(self):
         index = {r.sigma : i for i, r in enumerate(self.elements)}
@@ -203,7 +203,7 @@ class DihedralGroup:
             "index_target": target_index,
             "element_left": left_elements,
             "elemenet_right": right_elements,
-            "element_tatrget": target_elements 
+            "element_target": target_elements 
         })
 
 
