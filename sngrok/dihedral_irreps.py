@@ -18,10 +18,10 @@ def generate_subgroup(generators, n):
 def dihedral_conjugacy_classes(n: int):
     conj_classes = [(0, 0), (0, 1)]
     if n % 2 == 1:
-        conj_classes += [(i, 0) for i in range(1, (n + 1) // 2)]
+        conj_classes += [(i, 0) for i in range(1, n)]
     else:
         conj_classes += [((2, 0), (0, 1)), ((2, 1), (0, 1))]
-        conj_classes += [(i, 0) for i in range(1, n // 2)]
+        conj_classes += [(i, 0) for i in range(1, n)]
     return conj_classes
 
 
