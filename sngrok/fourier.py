@@ -1,10 +1,12 @@
-import torch
-from itertools import product
 import functorch
-
+from itertools import product
+import torch
+from .dihedral import Dihedral
+from .dihedral_irreps import DihedralIrrep
 from .irreps import SnIrrep
 from .permutations import Permutation
-from .tableau import generate_partitions
+from .product_permutations import ProductPermutation
+from .tableau import conjugate_partition, generate_partitions
 
 
 def _dot(fx, rho):
@@ -48,7 +50,7 @@ def calc_power(ft, group_order):
     return {k: (frob(v) / group_order**2)  for k, v in ft.items()}
 
 
-def slow_ft_1d(fn_vals, n):
+def slow_sn_ft_1d(fn_vals, n):
     all_partitions = generate_partitions(n)
     all_irreps = [SnIrrep(n, p) for p in all_partitions]
     results = {}
@@ -58,8 +60,25 @@ def slow_ft_1d(fn_vals, n):
     return results
 
 
+def slow_an_ft_1d(fn_vals, n):
+    all_partitions = set()
+    partitions = []
+    results = {}
+    for p in generate_partitions(n):
+        if p in all_partitions:
+            continue
+        else:
+            partitions.append(p)
+            all_partitions.add(p)
+            all_partitions.add(conjugate_partition(p))
+    all_irreps = [SnIrrep(n, p) for p in partitions]
+    for irrep in all_irreps:
+        matrices = irrep.alternating_matrix_tensor().to(fn_vals.device).to(torch.float32)
+        results[irrep.shape] = fft_sum(fn_vals, matrices).squeeze()
+    return results
 
-def slow_ft_2d(fn_vals, n):
+
+def slow_sn_ft_2d(fn_vals, n):
     all_partitions = generate_partitions(n)
     all_irreps = [SnIrrep(n, p) for p in all_partitions]
     results = {}
@@ -76,16 +95,43 @@ def slow_ft_2d(fn_vals, n):
     return results
 
 
-def sn_fourier_basis(ft, n, device='cpu'):
-    all_partitions = generate_partitions(n)
-    permutations = Permutation.full_group(n)
+def slow_product_sn_ft(fn_vals, irreps, ns):
+    full_group = [p.sigma for p in ProductPermutation.full_group(ns)]
+    results = {}
+    device = fn_vals.device
+    for irrep, matrices in irreps.items():
+        tensor = torch.concat(
+            [torch.asarray(matrices[perm], dtype=torch.float32, device=device).unsqueeze(0) for perm in full_group],
+            dim=0
+        )
+        results[irrep] = fft_sum(fn_vals, tensor).squeeze()
+    return results
+
+
+def slow_dihedral_ft(fn_vals, irreps, n):
+    full_group = [p.sigma for p in Dihedral.full_group(n)]
+    results = {}
+    device = fn_vals.device
+    for irrep, matrices in irreps.items():
+        tensor = torch.concat(
+            [torch.asarray(matrices[rot], dtype=torch.float32, device=device).unsqueeze(0) for rot in full_group],
+            dim=0
+        )
+        results[irrep] = fft_sum(fn_vals, tensor).squeeze()
+    return results
+
+
+def sn_fourier_basis(ft, G, device='cpu'):
+    permutations = G.elements
     group_order = len(permutations)
-    all_irreps = {p: SnIrrep(n, p).matrix_representations() for p in all_partitions}
+    all_irreps = G.irreps()
+    for k, v in all_irreps.items():
+        all_irreps[k] = v.matrix_representations()
     ift_decomps = []
     for perm in permutations:
         fourier_decomp = []
-        for part in all_partitions:
-            inv_rep = torch.asarray(all_irreps[part][perm.sigma].T, device=device).squeeze()           
+        for part, m in all_irreps.items():
+            inv_rep = torch.asarray(m[perm.sigma].T, device=device).squeeze()           
             fourier_decomp.append(ift_trace(ft[part], inv_rep.to(torch.float32)).unsqueeze(0))
         ift_decomps.append(torch.cat(fourier_decomp).unsqueeze(0))
     return torch.cat(ift_decomps) / group_order

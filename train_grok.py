@@ -1,14 +1,13 @@
-from confection import Config
+from confection import Config, registry
 import copy
-import math
 import polars as pl
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import tqdm.auto as tqdm
 import wandb
 
-from sngrok.fourier import slow_ft_1d, calc_power
-from sngrok.permutations import make_permutation_dataset
+from sngrok.fourier import calc_power
+from sngrok.groups import group_registry
 from sngrok.model import SnMLP
 from sngrok.utils import (
     calculate_checkpoint_epochs,
@@ -16,6 +15,8 @@ from sngrok.utils import (
     set_seeds,
     setup_checkpointing,
 )
+
+registry.groups = group_registry
 
 
 def get_optimizer(params, config):
@@ -39,10 +40,10 @@ def get_model(config):
     pass
 
 
-def calc_power_contributions(tensor, n):
+def calc_power_contributions(tensor, group):
     total_power = (tensor ** 2).mean(dim=0)
-    fourier_transform = slow_ft_1d(tensor, n)
-    irrep_power = calc_power(fourier_transform, math.factorial(n))
+    fourier_transform = group.fourier_transform(tensor)
+    irrep_power = calc_power(fourier_transform, group.order)
     power_contribs = {irrep: power / total_power for irrep, power in irrep_power.items()}
     irreps = list(power_contribs.keys())
     power_vals = torch.cat([power_contribs[irrep].unsqueeze(0) for irrep in irreps], dim=0)
@@ -54,21 +55,22 @@ def calc_power_contributions(tensor, n):
     return val_data, power_contribs
 
 
-def fourier_analysis(model, n, epoch):
+def fourier_analysis(model, group, epoch):
     W = model.linear.weight
     lembeds = model.lembed.weight.T
     rembeds = model.rembed.weight.T
     embed_dim = lembeds.shape[0]
     left_linear = (W[:, :embed_dim] @ lembeds).T
     right_linear = (W[:, embed_dim:] @ rembeds).T
-    lembed_power_df, lpowers = calc_power_contributions(left_linear, n)
-    rembed_power_df, rpowers = calc_power_contributions(right_linear, n)
+    lembed_power_df, lpowers = calc_power_contributions(left_linear, group)
+    rembed_power_df, rpowers = calc_power_contributions(right_linear, group)
+    unembed_power_df, unembed = calc_power_contributions(model.unembed.weight, group)
     lembed_power_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * lembed_power_df.shape[0]))
     rembed_power_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * rembed_power_df.shape[0]))
-    df = pl.concat([lembed_power_df, rembed_power_df], how='vertical')
+    unembed_power_df.insert_at_idx(0, pl.Series('layer', ['unembed'] * unembed_power_df.shape[0]))
+    df = pl.concat([lembed_power_df, rembed_power_df, unembed_power_df], how='vertical')
     df.insert_at_idx(0, pl.Series('epoch', [epoch] * df.shape[0]))
-    return df, lpowers, rpowers
-
+    return df, lpowers, rpowers, unembed
 
 
 def train_test_split(df, frac_train, rng):
@@ -80,27 +82,10 @@ def train_test_split(df, frac_train, rng):
     return df.with_columns(zeroes.alias('in_train'))
 
 
-def get_subgroup(df, parity):
-    if parity == 'all':
-        return df
-    elif parity == 0:
-        return df.filter(
-            (pl.col('parity') == 0) & (pl.col('parity_right') == 0)
-        )
-    elif parity == 1:
-        return df.filter(
-            (pl.col('parity') == 1) | (pl.col('parity_right') == 1)
-        )
-    else:
-        raise ValueError('Parity can only be 0, 1, or "all". Not {parity}')
-
-
-def get_dataloaders(config, rng, device):
+def get_dataloaders(group_mult_table, config, rng, device):
     frac_train = config['frac_train']
-    _, sn_mult_table = make_permutation_dataset(config['n'])
-    sn_mult_table = train_test_split(sn_mult_table, frac_train, rng)
-    sn_mult_table = get_subgroup(sn_mult_table, config['parity'])
-    sn_split = sn_mult_table.partition_by('in_train', as_dict=True)
+    group_mult_table = train_test_split(group_mult_table, frac_train, rng)
+    sn_split = group_mult_table.partition_by('in_train', as_dict=True)
     train_lperms = torch.as_tensor(sn_split[1].select('index_left').to_numpy(), dtype=torch.int64, device=device)
     train_rperms = torch.as_tensor(sn_split[1].select('index_right').to_numpy(), dtype=torch.int64, device=device)
     train_targets = torch.as_tensor(sn_split[1].select('index_target').to_numpy(), dtype=torch.int64, device=device)
@@ -112,7 +97,7 @@ def get_dataloaders(config, rng, device):
     train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
     test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
 
-    return train_dataloader, test_dataloader, sn_mult_table
+    return train_dataloader, test_dataloader, group_mult_table
 
 
 def loss_fn(logits, labels):
@@ -146,9 +131,8 @@ def test_forward(model, dataloader):
     return total_loss.item()
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, config):
+def train(model, optimizer, train_dataloader, test_dataloader, config, group):
     train_config = config['train']
-    n = config['train']['n']
     checkpoint_dir, _ = setup_checkpointing(train_config)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     model_checkpoints = []
@@ -162,22 +146,23 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
         optimizer.step()
         optimizer.zero_grad()
 
-        with torch.no_grad():
-            test_loss = test_forward(model, test_dataloader)
+        msg = {'loss/train': train_loss}
+
+        if epoch % 100 == 0:
+            with torch.no_grad():
+                test_loss = test_forward(model, test_dataloader)
+                msg['loss/test'] = test_loss
 
         optimizer.zero_grad()
 
-        msg = {
-            'loss/train': train_loss,
-            'loss/test': test_loss
-        }
-
-        if epoch % 100 == 0:
-            freq_data, left_powers, right_powers = fourier_analysis(model, n, epoch)
+        if epoch % 1000 == 0:
+            freq_data, left_powers, right_powers, unembed_powers = fourier_analysis(model, group, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
             right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
+            unembed_powers = {f'unembed/{k}': v for k, v in unembed_powers.items()}
             msg.update(left_powers)
             msg.update(right_powers)
+            msg.update(unembed_powers)
 
         if epoch in checkpoint_epochs:
             train_loss_data.append(train_loss)
@@ -198,9 +183,6 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
-
-        if test_loss <= train_config['grok_threshold']:
-            break
         
         wandb.log(msg)
 
@@ -219,12 +201,17 @@ def train(model, optimizer, train_dataloader, test_dataloader, config):
 def main():
     args = parse_arguments()
     config = Config().from_disk(args.config)
+    registry_objects = registry.resolve(config)
+
+    group = registry_objects['group']
+    group_mult_table = group.make_multiplication_table()
 
     device = torch.device('cuda')
 
     np_rng = set_seeds(config['train']['seed'])
 
     train_data, test_data, mult_table = get_dataloaders(
+        group_mult_table,
         config['train'],
         np_rng,
         device
@@ -254,7 +241,8 @@ def main():
             optimizer,
             train_data,
             test_data,
-            config
+            config,
+            group
         )
     except KeyboardInterrupt:
         pass

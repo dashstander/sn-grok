@@ -3,7 +3,6 @@ n = 6
 frac_train = 0.50
 batch_size = 16384
 num_epochs = 200000
-parity = "all"
 grok_threshold = 0.00001
 checkpoint_every = 10000
 extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512, 1024, 2048, 4096, 8192]
@@ -11,6 +10,11 @@ device = "cuda"
 seed = 128
 checkpoint_dir = "checkpoints"
 run_dir = "s6_50"
+
+
+[group]
+@groups = "Sn"
+n = ${train.n}
 
 [model]
 embed_dim = 512
@@ -20,9 +24,9 @@ tie_lr = false
 
 
 [optimizer]
-algorithm = "sgd"
+algorithm = "adam"
 lr = 1e-3
-wd = 1.0
+weight_decay = 1.0
 betas = [0.9, 0.98]
 
 

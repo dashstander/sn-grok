@@ -63,9 +63,24 @@ def _generate_partitions(n):
     return partitions
 
 
+def check_parity(partition):
+    even_cycles = [c for c in partition if (c % 2 == 0)]
+    return len(even_cycles) % 2
+
+
 def generate_partitions(n):
     return sorted(list(set(_generate_partitions(n))))
 
+
+def conjugate_partition(partition):
+    n = sum(partition)
+    conj_part = []
+    for i in range(n):
+        reverse = [j for j in partition if j > i]
+        if reverse:
+            conj_part.append(len(reverse))
+    return tuple(conj_part)
+    
 
 @total_ordering
 class YoungTableau:

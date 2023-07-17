@@ -1,9 +1,8 @@
 from copy import deepcopy
-from functools import partial, reduce, total_ordering
-from itertools import pairwise, permutations, product
+from functools import reduce, total_ordering
+from itertools import pairwise, permutations
 import operator
-import polars as pl
-from .tableau import YoungTableau
+from sngrok.tableau import YoungTableau
 
 
 @total_ordering
@@ -126,8 +125,8 @@ class Permutation:
     
     @property
     def parity(self):
-        odd_cycles = [c for c in self.cycle_rep if (len(c) % 2 == 0)]
-        return len(odd_cycles) % 2
+        even_cycles = [c for c in self.cycle_rep if (len(c) % 2 == 0)]
+        return len(even_cycles) % 2
     
     @property
     def conjugacy_class(self):
@@ -173,84 +172,3 @@ class Permutation:
                 decomp = reversed(adj_to_j) + center + adj_to_j
             adjacent_transpositions.append(decomp)
         return adjacent_transpositions
-
-
-def get_index(df, result):
-    perm = result.to_list()
-    return (
-        df.filter(
-            pl.col('permutation').apply(lambda x: x.to_list() == perm)
-        ).select('index').item()
-    )
-
-def _to_str(s):
-        return '(' + ', '.join([str(c) for c in s]) + ')'
-
-
-def make_permutation_dataset(n: int):
-    perms = []
-    index = {}
-    one_lines = []
-    cycle_reps = []
-    conj_classes = []
-    strings = []
-    parities = []
-    perms = [Permutation(seq) for seq in permutations(list(range(n)))]
-    perms = sorted(perms)
-    for i, p in enumerate(perms):
-        one_lines.append(p.sigma)
-        strings.append(str(p.sigma))
-        cycle_reps.append(p.cycle_rep)
-        conj_classes.append(p.conjugacy_class)
-        parities.append(p.parity)
-        index[p.sigma] = i
-    perm_df = pl.from_dict({
-        'permutation': one_lines,
-        'string_perm': strings,
-        'cycle_rep': cycle_reps,
-        'conjugacy_class': conj_classes,
-        'parity': parities
-    }).with_row_count(name='index')
-    perm_df = perm_df.with_columns(
-        pl.col('index').cast(pl.Int32)
-    )
-    
-    mult_df = perm_df.join(perm_df, on='string_perms', how='cross')
-    mult_df = mult_df.with_columns(
-        pl.col('permutation_right').arr.take(pl.col('permutation')).alias('permutation_target'))
-    mult_df = mult_df.with_columns([
-        pl.col('permutation_target').apply(_to_str)
-    ])
-    mult_df = mult_df.join(
-        perm_df.select(['string_perm', 'index', 'conjugacy_class']),
-        left_on='permutation_target',
-        right_on='string_perm',
-        suffix='_target'
-    )
-
-    mult_df = mult_df.select(
-        pl.all().exclude(['permutation', 'permutation_right'])
-    )
-
-    new_schema = {
-        'index': 'index_left',
-        'string_perm': 'permutation_left',
-        'cycle_rep': 'cycle_rep_left',
-        'conjugacy_class': 'conjugacy_class_left',
-        'parity': 'parity_left',
-        'string_perm_right': 'permutation_right',
-    }
-    mult_df = mult_df.rename(new_schema)
-    return perm_df, mult_df
-
-
-def generate_subgroup(generators: list[tuple[int]]):
-    group_size = 0
-    all_perms = set(generators)
-    while group_size < len(all_perms):
-        group_size = len(all_perms)
-        perms = [Permutation(p) for p in all_perms]
-        for perm1, perm2 in product(perms, repeat=2):
-            perm3 = perm1 * perm2
-            all_perms.add(perm3.sigma)
-    return list(all_perms)

@@ -3,11 +3,15 @@ n = 5
 frac_train = 0.5
 batch_size = 16384
 num_epochs = 250000
-parity = "all"
 grok_threshold = 0.00001
 checkpoint_every = 2000
 extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512, 1024]
 device = "cuda"
+
+
+[group]
+@groups = "Sn"
+n = ${train.n}
 
 
 [model]
