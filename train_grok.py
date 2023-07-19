@@ -64,11 +64,13 @@ def fourier_analysis(model, group, epoch):
     right_linear = (W[:, embed_dim:] @ rembeds).T
     lembed_power_df, lpowers = calc_power_contributions(left_linear, group)
     rembed_power_df, rpowers = calc_power_contributions(right_linear, group)
+    unembed_power_df, unembed = calc_power_contributions(model.unembed.weight, group)
     lembed_power_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * lembed_power_df.shape[0]))
     rembed_power_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * rembed_power_df.shape[0]))
-    df = pl.concat([lembed_power_df, rembed_power_df], how='vertical')
+    unembed_power_df.insert_at_idx(0, pl.Series('layer', ['unembed'] * unembed_power_df.shape[0]))
+    df = pl.concat([lembed_power_df, rembed_power_df, unembed_power_df], how='vertical')
     df.insert_at_idx(0, pl.Series('epoch', [epoch] * df.shape[0]))
-    return df, lpowers, rpowers
+    return df, lpowers, rpowers, unembed
 
 
 def train_test_split(df, frac_train, rng):
@@ -144,22 +146,23 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, group):
         optimizer.step()
         optimizer.zero_grad()
 
-        with torch.no_grad():
-            test_loss = test_forward(model, test_dataloader)
+        msg = {'loss/train': train_loss}
+
+        if epoch % 100 == 0:
+            with torch.no_grad():
+                test_loss = test_forward(model, test_dataloader)
+                msg['loss/test'] = test_loss
 
         optimizer.zero_grad()
 
-        msg = {
-            'loss/train': train_loss,
-            'loss/test': test_loss
-        }
-
         if epoch % 1000 == 0:
-            freq_data, left_powers, right_powers = fourier_analysis(model, group, epoch)
+            freq_data, left_powers, right_powers, unembed_powers = fourier_analysis(model, group, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
             right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
+            unembed_powers = {f'unembed/{k}': v for k, v in unembed_powers.items()}
             msg.update(left_powers)
             msg.update(right_powers)
+            msg.update(unembed_powers)
 
         if epoch in checkpoint_epochs:
             train_loss_data.append(train_loss)
@@ -180,9 +183,6 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, group):
             )
             model_checkpoints.append(model_state)
             opt_checkpoints.append(opt_state)
-
-        if test_loss <= train_config['grok_threshold']:
-            break
         
         wandb.log(msg)
 

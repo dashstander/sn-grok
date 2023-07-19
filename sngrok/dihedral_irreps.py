@@ -8,7 +8,7 @@ def generate_subgroup(generators, n):
     all_elements = set(generators)
     while group_size < len(all_elements):
         group_size = len(all_elements)
-        rotations = [Dihedral(*p) for p in all_elements]
+        rotations = [Dihedral(*p, n) for p in all_elements]
         for r1, r2 in product(rotations, repeat=2):
             r3 = r1 * r2
             all_elements.add(r3.sigma)
@@ -18,10 +18,10 @@ def generate_subgroup(generators, n):
 def dihedral_conjugacy_classes(n: int):
     conj_classes = [(0, 0), (0, 1)]
     if n % 2 == 1:
-        conj_classes += [(i, 0) for i in range(1, (n + 1) // 2)]
+        conj_classes += [(i, 0) for i in range(1, n)]
     else:
         conj_classes += [((2, 0), (0, 1)), ((2, 1), (0, 1))]
-        conj_classes += [(i, 0) for i in range(1, n // 2)]
+        conj_classes += [(i, 0) for i in range(1, n)]
     return conj_classes
 
 
@@ -68,3 +68,7 @@ class DihedralIrrep:
         ):
             subgroup = generate_subgroup(self.conjugacy_class, self.n)
             return self._subgroup_irrep(subgroup)
+        else:
+            raise ValueError(
+                f'Somehow {self.conjugacy_class} is not a proper conjugacy class....'
+            )

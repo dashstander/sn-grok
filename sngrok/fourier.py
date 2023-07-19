@@ -1,6 +1,8 @@
 import functorch
 from itertools import product
 import torch
+from .dihedral import Dihedral
+from .dihedral_irreps import DihedralIrrep
 from .irreps import SnIrrep
 from .permutations import Permutation
 from .product_permutations import ProductPermutation
@@ -100,6 +102,19 @@ def slow_product_sn_ft(fn_vals, irreps, ns):
     for irrep, matrices in irreps.items():
         tensor = torch.concat(
             [torch.asarray(matrices[perm], dtype=torch.float32, device=device).unsqueeze(0) for perm in full_group],
+            dim=0
+        )
+        results[irrep] = fft_sum(fn_vals, tensor).squeeze()
+    return results
+
+
+def slow_dihedral_ft(fn_vals, irreps, n):
+    full_group = [p.sigma for p in Dihedral.full_group(n)]
+    results = {}
+    device = fn_vals.device
+    for irrep, matrices in irreps.items():
+        tensor = torch.concat(
+            [torch.asarray(matrices[rot], dtype=torch.float32, device=device).unsqueeze(0) for rot in full_group],
             dim=0
         )
         results[irrep] = fft_sum(fn_vals, tensor).squeeze()
