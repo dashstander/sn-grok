@@ -131,9 +131,9 @@ def test_forward(model, dataloader):
     return total_loss.item()
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, config, group):
+def train(model, optimizer, train_dataloader, test_dataloader, config, seed, group):
     train_config = config['train']
-    checkpoint_dir, _ = setup_checkpointing(train_config)
+    checkpoint_dir = setup_checkpointing(train_config, seed)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
     model_checkpoints = []
     opt_checkpoints = []
@@ -242,6 +242,7 @@ def main():
             train_data,
             test_data,
             config,
+            seed,
             group
         )
     except KeyboardInterrupt:
