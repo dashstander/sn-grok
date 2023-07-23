@@ -7,7 +7,7 @@ parity = "all"
 checkpoint_every = 10000
 extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512, 1024, 2048, 4096, 8192]
 device = "cuda"
-run_dir = "/mnt/ssd-1/sn-circuits/s5_40"
+checkpoint_dir = "/mnt/ssd-1/sn-circuits/s5_40"
 
 
 [group]
