@@ -217,7 +217,7 @@ def main():
         device
     )
 
-    checkpoint_dir, _ = setup_checkpointing(config['train'], seed)
+    checkpoint_dir  = setup_checkpointing(config['train'], seed)
     mult_table.select(
         [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
     ).write_parquet(checkpoint_dir / 'data.parquet')
