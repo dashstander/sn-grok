@@ -207,8 +207,8 @@ def main():
     group_mult_table = group.make_multiplication_table()
 
     device = torch.device('cuda')
-
-    np_rng = set_seeds(config['train']['seed'])
+    seed = config['train']['seed']
+    np_rng = set_seeds(seed)
 
     train_data, test_data, mult_table = get_dataloaders(
         group_mult_table,
@@ -217,7 +217,7 @@ def main():
         device
     )
 
-    checkpoint_dir, _ = setup_checkpointing(config['train'])
+    checkpoint_dir, _ = setup_checkpointing(config['train'], seed)
     mult_table.select(
         [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
     ).write_parquet(checkpoint_dir / 'data.parquet')

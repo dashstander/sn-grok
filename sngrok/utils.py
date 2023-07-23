@@ -17,8 +17,7 @@ def set_seeds(seed):
     return np_rng
 
 
-def setup_checkpointing(config):
-    seed = config['seed']
+def setup_checkpointing(config, seed):
     run_dir = config['run_dir']
     base_dir = Path(config['checkpoint_dir'])
     checkpoint_dir = base_dir / f'{run_dir}_{seed}'
