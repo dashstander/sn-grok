@@ -195,7 +195,6 @@ def main():
     registry_objects = registry.resolve(config)
 
     wandb.init(
-        **config['wandb'],
         config=config
     )
     seed = wandb.config.seed
