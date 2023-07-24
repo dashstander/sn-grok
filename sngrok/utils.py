@@ -40,6 +40,6 @@ def to_numpy(x):
 
 def wandb_histogram(tensor):
     try:
-        Histogram(tensor.detach().cpu())
+        return Histogram(tensor.detach().cpu())
     except ValueError:
         return None
