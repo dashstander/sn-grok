@@ -14,6 +14,7 @@ from sngrok.utils import (
     parse_arguments,
     set_seeds,
     setup_checkpointing,
+    wandb_histogram
 )
 
 registry.groups = group_registry
@@ -154,9 +155,9 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
 
         if (epoch % 1000 == 0) or (epoch in checkpoint_epochs):
             _, left_powers, right_powers, unembed_powers = fourier_analysis(model, group, epoch)
-            left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
-            right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
-            unembed_powers = {f'unembed/{k}': v for k, v in unembed_powers.items()}
+            left_powers = {f'left_linear/{k}': wandb_histogram(v) for k, v in left_powers.items()}
+            right_powers = {f'right_linear/{k}': wandb_histogram(v) for k, v in right_powers.items()}
+            unembed_powers = {f'unembed/{k}': wandb_histogram(v) for k, v in unembed_powers.items()}
             msg.update(left_powers)
             msg.update(right_powers)
             msg.update(unembed_powers)

@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 from pathlib import Path
 import torch
+from wandb import Histogram
 
 
 def parse_arguments():
@@ -35,3 +36,10 @@ def calculate_checkpoint_epochs(config):
 
 def to_numpy(x):
     return x.detach().cpu().numpy()
+
+
+def wandb_histogram(tensor):
+    try:
+        Histogram(tensor)
+    except ValueError:
+        return None
