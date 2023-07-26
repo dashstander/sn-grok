@@ -3,8 +3,6 @@ from sngrok.permutations import Permutation
 
 
 
-
-
 class PerfectDoubleCosetCircuit:
 
     def __init__(self, g: Permutation, lsubgroup: list[Permutation], rsubgroup: list[Permutation]):
@@ -34,6 +32,3 @@ class PerfectDoubleCosetCircuit:
             return 0.
         else:
             return 1.
-
-
-
