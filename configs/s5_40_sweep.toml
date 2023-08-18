@@ -1,0 +1,35 @@
+[train]
+n = 5
+frac_train = 0.4
+batch_size = 16384
+num_epochs = 250000
+checkpoint_every = 10000
+extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512, 1024, 2048, 4096, 8192]
+device = "cuda"
+checkpoint_dir = "/mnt/ssd-1/sn-circuits/"
+run_dir = "s5_40"
+
+
+[group]
+@groups = "Sn"
+n = 5
+
+
+[model]
+embed_dim = 256
+model_dim = 128
+vocab_size = 120
+tie_lr = false
+
+
+[optimizer]
+algorithm = "adam"
+lr = 1e-3
+weight_decay = 1.0
+betas = [0.9, 0.98]
+
+
+[wandb]
+entity = "dstander"
+group = "S5_40pcnt_sweep"
+project = "grokking_sn"
