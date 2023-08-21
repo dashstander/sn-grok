@@ -32,3 +32,23 @@ class PerfectDoubleCosetCircuit:
             return 0.
         else:
             return 1.
+        
+
+
+def s4_in_s5_circuit(left_perm, right_perm):
+    """Zero if the product has 2 in the 3rd position"""
+    left_perm_cosets = {
+        (1, 2, 3, 4, 5): -1,
+        (2, 1, 3, 4, 5): 0,
+        (1, 3, 2, 4, 5): 2,
+        (1, 4, 3, 2, 5): 0,
+        (1, 5, 3, 4, 2): 0
+    }
+    left_perm_cosets = {
+        (1, 2, 3, 4, 5): -2,
+        (2, 1, 3, 4, 5): 0,
+        (1, 3, 2, 4, 5): 1,
+        (1, 4, 3, 2, 5): 0,
+        (1, 5, 3, 4, 2): 0
+    }
+
