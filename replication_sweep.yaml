@@ -8,5 +8,5 @@ command:
   - ${interpreter}
   - ${program}
   - "--config"
-  - "configs/s5_50_large_sweep.toml"
+  - "configs/s5_50_huge_sweep.toml"
   - ${args}
