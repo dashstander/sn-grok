@@ -84,13 +84,63 @@ def _make_multiplication_table(all_permutations):
         "permutation_target": target_perms 
     })
 
+def _make_modular_addition_table(n):
+    left_perms = []
+    lindex = []
+    rindex = []
+    right_perms = []
+    target_perms = []
+    target_index = []
+    for lperm, rperm in product(list(range(n)), list(range(n))):
+        left_perms.append(str(lperm))
+        right_perms.append(str(rperm))
+        target = (lperm + rperm) % n
+        target_perms.append(str(target))
+        lindex.append(lperm)
+        rindex.append(rperm)
+        target_index.append(target)
+
+    return pl.DataFrame({
+        "index_left": lindex,
+        "index_right": rindex,
+        "index_target": target_index,
+        "permutation_left": left_perms,
+        "permutation_right": right_perms,
+        "permutation_target": target_perms 
+    })
 
 class PermutationGroup:
 
     def make_multiplication_table(self):
         return _make_multiplication_table(self.elements)
 
+class CyclicGroup:
+    def __init__(self, n: int):
+        self.n = n
 
+    def make_modular_addition_table(self):
+        return _make_modular_addition_table(self.n)
+    
+    def _trivial_irrep(self):
+            return {r.sigma: np.ones((1,)) for r in self.group}
+        
+    def _matrix_irrep(self, k):
+        mats = {}
+        mats[0] = np.eye(2)
+    
+        two_pi_n = 2 * np.pi / self.n
+        for l in range(1, self.n):
+            sin = np.sin(two_pi_n * l * k)
+            cos = np.sin(two_pi_n * l * k)
+            m = np.array([[cos, -1.0 * sin], [sin, cos]])
+            mats[l] = m
+        return mats
+    
+    def matrix_representations(self):
+        if self.conjugacy_class == 0:
+            return self._trivial_irrep()
+        else:
+            return self._matrix_irrep(self.conjugacy_class)
 
 class Symmetric(PermutationGroup):
     def __init__(self, n: int):
@@ -226,3 +276,7 @@ def dn(n: int):
 @group_registry.register("ProdSn")
 def prod_sn(ns: list[int]):
     return ProductSymmetric(ns)
+
+@group_registry.register("Cn")
+def prod_sn(n):
+    return CyclicGroup(n)
