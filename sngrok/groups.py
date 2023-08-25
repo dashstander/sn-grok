@@ -8,10 +8,11 @@ import polars as pl
 from sngrok.dihedral import Dihedral
 from sngrok.permutations import Permutation
 from sngrok.product_permutations import ProductPermutation
-from sngrok.fourier import slow_an_ft_1d, slow_dihedral_ft, slow_sn_ft_1d, slow_product_sn_ft
+from sngrok.fourier import slow_an_ft_1d, slow_dihedral_ft, slow_sn_ft_1d, slow_product_sn_ft, slow_cyclic_ft
 from sngrok.tableau import conjugate_partition, generate_partitions
 from sngrok.irreps import SnIrrep
 from sngrok.dihedral_irreps import DihedralIrrep, dihedral_conjugacy_classes
+from sngrok.cyclic_irreps import CyclicIrrep
 
 
 group_registry = catalogue.create("groups", entry_points=False)
@@ -117,30 +118,20 @@ class PermutationGroup:
 class CyclicGroup:
     def __init__(self, n: int):
         self.n = n
+        self.order = n
+        self.elements = [i for i in range(n)]
 
     def make_modular_addition_table(self):
         return _make_modular_addition_table(self.n)
     
-    def _trivial_irrep(self):
-            return {r.sigma: np.ones((1,)) for r in self.group}
-        
-    def _matrix_irrep(self, k):
-        mats = {}
-        mats[0] = np.eye(2)
+    def irreps(self):
+        return {
+            el : CyclicIrrep(self.n, el).matrix_representations() for el in self.elements
+        }
     
-        two_pi_n = 2 * np.pi / self.n
-        for l in range(1, self.n):
-            sin = np.sin(two_pi_n * l * k)
-            cos = np.sin(two_pi_n * l * k)
-            m = np.array([[cos, -1.0 * sin], [sin, cos]])
-            mats[l] = m
-        return mats
+    def fourier_transform(self, tensor):
+        return slow_cyclic_ft(tensor, self.irreps(), self.n)
     
-    def matrix_representations(self):
-        if self.conjugacy_class == 0:
-            return self._trivial_irrep()
-        else:
-            return self._matrix_irrep(self.conjugacy_class)
 
 class Symmetric(PermutationGroup):
     def __init__(self, n: int):
