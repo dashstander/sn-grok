@@ -8,10 +8,11 @@ import polars as pl
 from sngrok.dihedral import Dihedral
 from sngrok.permutations import Permutation
 from sngrok.product_permutations import ProductPermutation
-from sngrok.fourier import slow_an_ft_1d, slow_dihedral_ft, slow_sn_ft_1d, slow_product_sn_ft
+from sngrok.fourier import slow_an_ft_1d, slow_dihedral_ft, slow_sn_ft_1d, slow_product_sn_ft, slow_cyclic_ft
 from sngrok.tableau import conjugate_partition, generate_partitions
 from sngrok.irreps import SnIrrep
 from sngrok.dihedral_irreps import DihedralIrrep, dihedral_conjugacy_classes
+from sngrok.cyclic_irreps import CyclicIrrep
 
 
 group_registry = catalogue.create("groups", entry_points=False)
@@ -84,13 +85,53 @@ def _make_multiplication_table(all_permutations):
         "permutation_target": target_perms 
     })
 
+def _make_modular_addition_table(n):
+    left_perms = []
+    lindex = []
+    rindex = []
+    right_perms = []
+    target_perms = []
+    target_index = []
+    for lperm, rperm in product(list(range(n)), list(range(n))):
+        left_perms.append(str(lperm))
+        right_perms.append(str(rperm))
+        target = (lperm + rperm) % n
+        target_perms.append(str(target))
+        lindex.append(lperm)
+        rindex.append(rperm)
+        target_index.append(target)
+
+    return pl.DataFrame({
+        "index_left": lindex,
+        "index_right": rindex,
+        "index_target": target_index,
+        "permutation_left": left_perms,
+        "permutation_right": right_perms,
+        "permutation_target": target_perms 
+    })
 
 class PermutationGroup:
 
     def make_multiplication_table(self):
         return _make_multiplication_table(self.elements)
 
+class CyclicGroup:
+    def __init__(self, n: int):
+        self.n = n
+        self.order = n
+        self.elements = [i for i in range(n)]
 
+    def make_modular_addition_table(self):
+        return _make_modular_addition_table(self.n)
+    
+    def irreps(self):
+        return {
+            el : CyclicIrrep(self.n, el).matrix_representations() for el in self.elements
+        }
+    
+    def fourier_transform(self, tensor):
+        return slow_cyclic_ft(tensor, self.irreps(), self.n)
+    
 
 class Symmetric(PermutationGroup):
     def __init__(self, n: int):
@@ -226,3 +267,7 @@ def dn(n: int):
 @group_registry.register("ProdSn")
 def prod_sn(ns: list[int]):
     return ProductSymmetric(ns)
+
+@group_registry.register("Cn")
+def prod_sn(n):
+    return CyclicGroup(n)

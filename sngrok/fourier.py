@@ -121,6 +121,19 @@ def slow_dihedral_ft(fn_vals, irreps, n):
     return results
 
 
+def slow_cyclic_ft(fn_vals, irreps, n):
+    full_group = [i for i in range(n)]
+    results = {}
+    device = fn_vals.device
+    for irrep, matrices in irreps.items():
+        tensor = torch.concat(
+            [torch.asarray(matrices[rot], dtype=torch.float32, device=device).unsqueeze(0) for rot in full_group],
+            dim=0
+        )
+        results[irrep] = fft_sum(fn_vals, tensor).squeeze()
+    return results
+
+
 def sn_fourier_basis(ft, G, device='cpu'):
     permutations = G.elements
     group_order = len(permutations)
