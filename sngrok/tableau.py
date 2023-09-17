@@ -141,9 +141,9 @@ class YoungTableau:
         #assert y == x + 1
         ix, jx = self.index(x)
         iy, jy = self.index(y)
-        row_dist = ix - iy
+        row_dist = iy - ix
         col_dist = jy - jx
-        return row_dist + col_dist
+        return row_dist - col_dist
 
 
 def _enumerate_next_placements(unfinished_syt):
