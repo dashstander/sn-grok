@@ -142,7 +142,7 @@ class YoungTableau:
         ix, jx = self.index(x)
         iy, jy = self.index(y)
         row_dist = iy - ix
-        col_dist = jx - jy
+        col_dist = jy - jx
         return row_dist + col_dist
 
 
