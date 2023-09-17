@@ -141,7 +141,7 @@ class YoungTableau:
         #assert y == x + 1
         ix, jx = self.index(x)
         iy, jy = self.index(y)
-        row_dist = iy - ix
+        row_dist = ix - iy
         col_dist = jy - jx
         return row_dist + col_dist
 
