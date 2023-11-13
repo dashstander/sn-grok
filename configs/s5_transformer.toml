@@ -26,7 +26,6 @@ n_layers = 1
 d_vocab = 121
 d_vocab_out = 120
 act_fn = "relu"
-use_ln = false
 
 [optimizer]
 algorithm = "adam"
