@@ -219,7 +219,7 @@ def main():
     mult_table.select(
         [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
     ).write_parquet(checkpoint_dir / 'data.parquet')
-    HookedTransformerConfig()
+    print(config['model'])
     transformer_config = HookedTransformerConfig(**config['model'])
     model = HookedTransformer(transformer_config)
 
