@@ -1,5 +1,6 @@
 from confection import Config, registry
 import copy
+import math
 import polars as pl
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -96,15 +97,15 @@ def train_test_split(df, frac_train, seed):
 
 def get_dataloaders(group_mult_table, config, device):
     frac_train = config['frac_train']
-    order = group_mult_table.shape[0]
+    order = math.factorial(config['n'])
     equals = order + 1
     group_mult_table = train_test_split(group_mult_table, frac_train, config['seed'])
     sn_split = group_mult_table.partition_by('in_train', as_dict=True)
     train_perms = torch.as_tensor(sn_split[1].select(['index_left', 'index_right']).to_numpy(), dtype=torch.int64, device=device)
-    train_perms = torch.concat([train_perms, torch.full((train_perms.shape[0],), equals)], dim=1)
+    train_perms = torch.concat([train_perms, torch.full((train_perms.shape[0],), equals, device=device)], dim=1)
     train_targets = torch.as_tensor(sn_split[1].select('index_target').to_numpy(), dtype=torch.int64, device=device)
     test_perms = torch.as_tensor(sn_split[0].select(['index_left', 'index_right']).to_numpy(), dtype=torch.int64, device=device)
-    test_perms = torch.concat([test_perms, torch.full((train_perms.shape[0],), equals)], dim=1)
+    test_perms = torch.concat([test_perms, torch.full((train_perms.shape[0],), equals, device=device)], dim=1)
     test_targets = torch.as_tensor(sn_split[0].select('index_target').to_numpy(), dtype=torch.int64, device=device)
     train_data = TensorDataset(train_perms, train_targets)
     test_data = TensorDataset(test_perms, test_targets)
