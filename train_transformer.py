@@ -82,7 +82,7 @@ def get_dataloaders(group_mult_table, config, device):
     frac_train = config['frac_train']
     order = group_mult_table.shape[0]
     equals = order + 1
-    group_mult_table = train_test_split(group_mult_table, frac_train, config['train']['seed'])
+    group_mult_table = train_test_split(group_mult_table, frac_train, config['seed'])
     sn_split = group_mult_table.partition_by('in_train', as_dict=True)
     train_perms = torch.as_tensor(sn_split[1].select(['index_left', 'index_right']).to_numpy(), dtype=torch.int64, device=device)
     train_perms = torch.concat([train_perms, torch.full((train_perms.shape[0],), equals)], dim=1)
