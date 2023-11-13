@@ -193,7 +193,6 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
             "config": config['model'],
             "checkpoints": model_checkpoints,
             "checkpoint_epochs": checkpoint_epochs[:len(model_checkpoints)],
-
         },
         checkpoint_dir / "full_run.pth"
     )
