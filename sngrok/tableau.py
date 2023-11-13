@@ -131,18 +131,18 @@ class YoungTableau:
                 return v1 < v2
 
     def index(self, val):
-        for i, row in enumerate(self.values):
+        for r, row in enumerate(self.values):
             if val in row:
-                j = row.index(val)
-                return i, j
+                c = row.index(val)
+                return r, c
         raise ValueError(f'{val} could not be found in tableau.')
     
     def transposition_dist(self, x: int, y: int) -> int:
         #assert y == x + 1
-        ix, jx = self.index(x)
-        iy, jy = self.index(y)
-        row_dist = iy - ix
-        col_dist = jx - jy
+        row_x, col_x = self.index(x)
+        row_y, col_y = self.index(y)
+        row_dist = row_x - row_y
+        col_dist = col_y - col_x
         return row_dist + col_dist
 
 
