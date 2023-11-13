@@ -3,6 +3,7 @@ import copy
 import math
 import polars as pl
 import torch
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset
 from transformer_lens import HookedTransformerConfig, HookedTransformer
 import tqdm.auto as tqdm
@@ -143,7 +144,7 @@ def test_forward(model, dataloader):
     return total_loss.item()
 
 
-def train(model, optimizer, train_dataloader, test_dataloader, config, seed, group):
+def train(model, optimizer, lr_scheduler, train_dataloader, test_dataloader, config, seed, group):
     train_config = config['train']
     checkpoint_dir = setup_checkpointing(train_config, seed)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
@@ -157,6 +158,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
 
         optimizer.step()
         optimizer.zero_grad()
+        lr_scheduler.step()
 
         msg = {'loss/train': train_loss}
 
@@ -228,6 +230,8 @@ def main():
         config['optimizer']
     )
 
+    lr_scheduler = CosineAnnealingLR(optimizer, T_max=100_000, eta_min=1.0e-6)
+
     wandb.init(
         **config['wandb'],
         config=config
@@ -239,6 +243,7 @@ def main():
         train(
             model,
             optimizer,
+            lr_scheduler,
             train_data,
             test_data,
             config,
