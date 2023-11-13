@@ -1,10 +1,10 @@
 [train]
 n = 5
-frac_train = 0.4
+frac_train = 0.8
 batch_size = 16384
 num_epochs = 100000
-checkpoint_every = 10000
-extra_checkpoints = [0, 2, 4, 8, 16, 32, 64, 128, 512, 1024, 2048, 4096, 8192]
+checkpoint_every = 100
+extra_checkpoints = [0, 2, 4, 8, 16, 32]
 device = "cuda"
 checkpoint_dir = "/mnt/ssd-1/sn-circuits/transformer"
 run_dir = "s5_40"
