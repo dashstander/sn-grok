@@ -29,7 +29,7 @@ act_fn = "relu"
 [optimizer]
 algorithm = "adam"
 lr = 1e-3
-weight_decay = 1.0
+weight_decay = 0.5
 betas = [0.9, 0.98]
 
 
