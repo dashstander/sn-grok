@@ -72,7 +72,7 @@ def fourier_analysis(model, group, epoch):
 
 def train_test_split(df, frac_train, seed):
     group_order = df.shape[0]
-    zeroes = pl.zeros(group_order, dtype=pl.UInt8)
+    zeroes = pl.zeros(group_order, dtype=pl.UInt8, eager=True)
     train_split = pl.int_range(0, group_order, eager=True).sample(fraction=frac_train, with_replacement=False, seed=seed)
     zeroes[train_split] = 1
     return df.with_columns(zeroes.alias('in_train'))
