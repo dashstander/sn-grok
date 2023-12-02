@@ -1,4 +1,5 @@
 from functools import reduce
+from itertools import product
 import polars as pl
 
 from sngrok.permutations import Permutation
@@ -20,7 +21,6 @@ def get_cosets(subgroup, n):
         coset = tuple(sorted([(left * s).sigma for s in perms]))
         cosets.add(coset)
     return cosets
-
 
 
 def _coset_join(df1, df2):
@@ -60,6 +60,30 @@ def get_right_cosets(subgroup, full_n):
         cosets.add(coset)
     return cosets
 
+
+def get_double_cosets(subgroup, full_n):
+    Sn =  Permutation.full_group(full_n)
+    all_sn = set([s.sigma for s in Sn])
+    perms = [Permutation(s) for s in subgroup]
+    cosets = set()
+    while union(cosets) != all_sn:
+        center = Sn.pop()
+        coset = sorted(set([(l * center * r).sigma for l, r in product(perms, perms)]))
+        cosets.add(tuple(coset))
+    return cosets
+
+
+def get_double_cosets_two_groups(subgroup1, subgroup2, full_n):
+    Sn =  Permutation.full_group(full_n)
+    all_sn = set([s.sigma for s in Sn])
+    perms1 = [Permutation(s) for s in subgroup1]
+    perms2 = [Permutation(s) for s in subgroup2]
+    cosets = set()
+    while union(cosets) != all_sn:
+        center = Sn.pop()
+        coset = tuple(set(sorted([(l * center * r).sigma for l, r in product(perms1, perms2)])))
+        cosets.add(tuple(sorted(coset)))
+    return cosets
 
 
 def make_left_coset_rep_df(subgroups, n, sg_name):

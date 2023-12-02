@@ -14,7 +14,6 @@ from sngrok.utils import (
     parse_arguments,
     set_seeds,
     setup_checkpointing,
-    wandb_histogram
 )
 
 registry.groups = group_registry
@@ -35,6 +34,10 @@ def get_optimizer(params, config):
     else:
         raise NotImplementedError(f'No optimizer named {name}')
     return optimizer
+
+
+def get_model(config):
+    pass
 
 
 def calc_power_contributions(tensor, group):
@@ -73,7 +76,7 @@ def fourier_analysis(model, group, epoch):
 def train_test_split(df, frac_train, rng):
     group_order = df.shape[0]
     num_train_samples = int(group_order * frac_train)
-    zeroes = pl.zeros(group_order, dtype=pl.UInt8, eager=True)
+    zeroes = pl.zeros(group_order, dtype=pl.UInt8)
     train_split = rng.choice(group_order, num_train_samples, replace=False)
     zeroes[train_split] = 1
     return df.with_columns(zeroes.alias('in_train'))
@@ -120,6 +123,7 @@ def train_forward(model, dataloader):
 
 def test_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda')
+
     for lperm, rperm, target in dataloader:
         logits  = model(lperm, rperm)
         losses = loss_fn(logits, target)
@@ -129,11 +133,12 @@ def test_forward(model, dataloader):
 
 def train(model, optimizer, train_dataloader, test_dataloader, config, seed, group):
     train_config = config['train']
-    checkpoint_dir  = setup_checkpointing(train_config, seed)
+    checkpoint_dir = setup_checkpointing(train_config, seed)
     checkpoint_epochs = calculate_checkpoint_epochs(train_config)
+    model_checkpoints = []
+    opt_checkpoints = []
     train_loss_data = []
     test_loss_data = []
-    loss_epochs = []
 
     for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
         train_loss = train_forward(model, train_dataloader)
@@ -143,28 +148,30 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
 
         msg = {'loss/train': train_loss}
 
-        if (epoch % 100 == 0) or (epoch in checkpoint_epochs):
+        if epoch % 100 == 0:
             with torch.no_grad():
                 test_loss = test_forward(model, test_dataloader)
                 msg['loss/test'] = test_loss
-            train_loss_data.append(train_loss)
-            test_loss_data.append(test_loss)
-            loss_epochs.append(epoch)
 
         optimizer.zero_grad()
 
-        if (epoch % 1000 == 0) or (epoch in checkpoint_epochs):
-            _, left_powers, right_powers, unembed_powers = fourier_analysis(model, group, epoch)
-            left_powers = {f'left_linear/{k}': wandb_histogram(v) for k, v in left_powers.items()}
-            right_powers = {f'right_linear/{k}': wandb_histogram(v) for k, v in right_powers.items()}
-            unembed_powers = {f'unembed/{k}': wandb_histogram(v) for k, v in unembed_powers.items()}
+        if epoch % 1000 == 0:
+            freq_data, left_powers, right_powers, unembed_powers = fourier_analysis(model, group, epoch)
+            left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
+            right_powers = {f'right_linear/{k}': v for k, v in right_powers.items()}
+            unembed_powers = {f'unembed/{k}': v for k, v in unembed_powers.items()}
             msg.update(left_powers)
             msg.update(right_powers)
             msg.update(unembed_powers)
 
         if epoch in checkpoint_epochs:
+            train_loss_data.append(train_loss)
+            test_loss_data.append(test_loss)
             model_state = copy.deepcopy(model.state_dict())
             opt_state = copy.deepcopy(optimizer.state_dict())
+            freq_data.melt(
+                id_vars=['epoch', 'layer', 'irrep']
+            ).write_parquet(checkpoint_dir / f'fourier{epoch}.parquet')
             torch.save(
                 {
                     "model": model_state,
@@ -174,6 +181,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
                 },
                 checkpoint_dir / f'{epoch}.pth'
             )
+            model_checkpoints.append(model_state)
+            opt_checkpoints.append(opt_state)
         
         wandb.log(msg)
 
@@ -182,10 +191,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
         {
             "model": model.state_dict(),
             "config": config['model'],
-            "checkpoint_epochs": checkpoint_epochs,
-            "train_loss": train_loss_data,
-            "test_loss": test_loss_data,
-            "loss_epochs": loss_epochs
+            "checkpoints": model_checkpoints,
+            "checkpoint_epochs": checkpoint_epochs[:len(model_checkpoints)],
         },
         checkpoint_dir / "full_run.pth"
     )
@@ -196,15 +203,15 @@ def main():
     registry_objects = registry.resolve(config)
 
     wandb.init(
+        **config['wandb'],
         config=config
     )
-    seed = wandb.config.seed
 
     group = registry_objects['group']
     group_mult_table = group.make_multiplication_table()
 
     device = torch.device('cuda')
-
+    seed = wandb.config.seed
     np_rng = set_seeds(seed)
 
     train_data, test_data, mult_table = get_dataloaders(
@@ -214,7 +221,7 @@ def main():
         device
     )
 
-    checkpoint_dir = setup_checkpointing(config['train'], seed)
+    checkpoint_dir  = setup_checkpointing(config['train'], seed)
     mult_table.select(
         [pl.col('^perm.*$'), pl.col('^index.*$'), 'in_train']
     ).write_parquet(checkpoint_dir / 'data.parquet')
@@ -224,6 +231,8 @@ def main():
         model.parameters(),
         config['optimizer']
     )
+
+    #wandb.watch(model, log='parameters', log_freq=1000)
 
     try:
         train(
