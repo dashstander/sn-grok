@@ -1,13 +1,13 @@
 [train]
 n = 6 
-frac_train = 0.50
+frac_train = 0.4
 batch_size = 16384
 num_epochs = 50000
 checkpoint_every = 1000
 extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512]
 device = "cuda"
 checkpoint_dir = "/mnt/ssd-1/sn-circuits/S6_sweep"
-run_dir = "s6_50"
+run_dir = "s6_40"
 
 
 [group]
@@ -30,5 +30,5 @@ betas = [0.9, 0.98]
 
 [wandb]
 entity = "dstander"
-group = "S6_50pcnt_sweep"
-project = "S6_50pcnt"
+group = "S6_40pcnt_sweep"
+project = "S6_40pcnt"
