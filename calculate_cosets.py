@@ -258,7 +258,7 @@ def tuplefy(generators):
 
 
 def get_s6_subgroups():
-    with open('s6_subgroups.json', mode='w') as jfile:
+    with open('s6_subgroups.json', mode='r') as jfile:
             all_s6_subgroups = json.load(jfile)
     for k, v in all_s6_subgroups.items():
         v['generators'] = [tuplefy(gens) for gens in v['generators']]
