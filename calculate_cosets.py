@@ -240,9 +240,6 @@ def cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output
     
     checkpoint_epochs = full_run['checkpoint_epochs'] + [49999]
     
-    left_data = []
-    right_data = []
-    
     for epoch, ckpt in zip(checkpoint_epochs, full_run['checkpoints']):
         run_and_write(
             ckpt,
@@ -286,3 +283,7 @@ def main():
     
     for run_dir in tqdm(input_dir.iterdir()):
          cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output_dir, device)
+
+
+if __name__ == '__main__':
+     main()
