@@ -239,7 +239,7 @@ def cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output
             epoch,
             model_seed,
             n,
-            device
+            output_dir
         )
 
 
