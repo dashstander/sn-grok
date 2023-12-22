@@ -8,7 +8,6 @@ grok_threshold = 0.00001
 checkpoint_every = 10000
 extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512, 1024, 2048, 4096, 8192]
 device = "cuda"
-seed = 130
 checkpoint_dir = "checkpoints"
 run_dir = "s6_50"
 

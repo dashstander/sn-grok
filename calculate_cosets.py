@@ -174,34 +174,24 @@ def _analysis(
     embed_dim = model.embed_dim
     W = model.linear.weight
 
-    lpower_df, llinear_ft = calc_power_contributions(model.lembed.weight @ W[:, :embed_dim].T, n)
-    rpower_df, rlinear_ft = calc_power_contributions(model.rembed.weight @ W[:, embed_dim:].T, n)
-    
-    lpower_df = transpose_power_df(lpower_df)
-    rpower_df = transpose_power_df(rpower_df)
-        
-    #lpower_df.insert_at_idx(0, pl.Series('layer', ['left_linear'] * num_rows))
-    #rpower_df.insert_at_idx(0, pl.Series('layer', ['right_linear'] * num_rows))
-    #power_df = pl.concat([lpower_df, rpower_df], how='vertical')
-    
+    llinear_ft = slow_sn_ft_1d(model.lembed.weight @ W[:, :embed_dim].T, n)
+    rlinear_ft = slow_sn_ft_1d(model.lembed.weight @ W[:, embed_dim:].T, n)
+
     llinear_decomp = sn_fourier_basis(llinear_ft, Sn)
     rlinear_decomp = sn_fourier_basis(rlinear_ft, Sn)
     
     llinear_df = fourier_basis_to_df(llinear_decomp, n, 'left_linear')
     rlinear_df = fourier_basis_to_df(rlinear_decomp, n, 'right_linear')
     
-    left_perm_coset_df = _all_data_coset_analysis(llinear_df, full_right_coset_df)
-    right_perm_coset_df = _all_data_coset_analysis(rlinear_df, full_left_coset_df)
+    ldf = _all_data_coset_analysis(llinear_df, full_right_coset_df)
+    rdf = _all_data_coset_analysis(rlinear_df, full_left_coset_df)
 
-    left_perm_coset_df = left_perm_coset_df.join()
 
     ldf.insert_at_idx(0, pl.Series('epoch', [epoch] * ldf.shape[0]))
     rdf.insert_at_idx(0, pl.Series('epoch', [epoch] * rdf.shape[0]))
     ldf.insert_at_idx(0, pl.Series('seed', [seed] * ldf.shape[0]))
     rdf.insert_at_idx(0, pl.Series('seed', [seed] * rdf.shape[0]))
-
-
-    return left_perm_coset_df, right_perm_coset_df
+    return ldf, rdf
 
 
 def run_and_write(
