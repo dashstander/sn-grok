@@ -225,6 +225,11 @@ def cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output
     right_dir = output_dir / 'right_cosets'
     left_dir.mkdir(parents=True, exist_ok=True)
     right_dir.mkdir(parents=True, exist_ok=True)
+
+    left_exists = (output_dir / f'left_cosets/{model_seed}.parquet').exists()
+    right_exists =  (output_dir / f'right_cosets/{model_seed}.parquet').exists()
+    if left_exists and right_exists:
+        return
     
     full_run = torch.load(run_dir / 'full_run.pth', map_location=device)
     
@@ -250,7 +255,7 @@ def tuplefy(generators):
 def get_s6_subgroups():
     with open('s6_subgroups.json', mode='r') as jfile:
             all_s6_subgroups = json.load(jfile)
-    for k, v in all_s6_subgroups.items():
+    for _, v in all_s6_subgroups.items():
         v['generators'] = [tuplefy(gens) for gens in v['generators']]
     return all_s6_subgroups
 
@@ -272,7 +277,11 @@ def main():
     full_left_coset_df, full_right_coset_df = make_full_coset_df(all_subgroups, n)
     
     for run_dir in tqdm(input_dir.iterdir()):
-         cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output_dir, device)
+         seed = int(run_dir.name.split('_')[-1])
+         if seed % args.mod != 0:
+             continue
+         if (run_dir / 'full_run.pth').exists():
+            cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output_dir, device)
 
 
 if __name__ == '__main__':
