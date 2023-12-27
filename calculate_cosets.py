@@ -279,7 +279,7 @@ def main():
     
     for run_dir in tqdm(input_dir.iterdir()):
          seed = int(run_dir.name.split('_')[-1])
-         if (seed % args.mod == 0) and (run_dir / 'full_run.pth').exists():
+         if (seed % 4 == args.mod) and (run_dir / 'full_run.pth').exists():
             cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output_dir, device)
 
 
