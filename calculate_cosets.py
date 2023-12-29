@@ -230,22 +230,23 @@ def cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output
     
     full_run = torch.load(run_dir / 'full_run.pth', map_location=device)
     
-    checkpoint_epochs = full_run['checkpoint_epochs'] + [49999]
+    #checkpoint_epochs = full_run['checkpoint_epochs'] + [49999]
 
-    epoch_pairs = list(zip(checkpoint_epochs, full_run['checkpoints']))
+    #epoch_pairs = list(zip(checkpoint_epochs, full_run['checkpoints']))
+
+    epoch_pairs = [(49999, full_run['model'])]
     
-    for epoch, ckpt in tqdm(epoch_pairs):
-        if epochs is None or epoch in epochs:
-            run_and_write(
-                ckpt,
-                full_run['config'],
-                full_left_coset_df,
-                full_right_coset_df,
-                epoch,
-                model_seed,
-                n,
-                output_dir
-            )
+    for epoch, ckpt in epoch_pairs:
+        run_and_write(
+            ckpt,
+            full_run['config'],
+            full_left_coset_df,
+            full_right_coset_df,
+            epoch,
+            model_seed,
+            n,
+            output_dir
+        )
 
 
 def tuplefy(generators):
@@ -279,12 +280,11 @@ def main():
     
     print('Making coset dataframes....')
     full_left_coset_df, full_right_coset_df = make_full_coset_df(all_subgroups, n)
-    
-    for run_dir in input_dir.iterdir():
-         seed = int(run_dir.name.split('_')[-1])
-         if (seed % 4 == args.mod) and (run_dir / 'full_run.pth').exists():
-            print('###############################')
-            print(seed)
+    directories = [run_dir for run_dir in input_dir.iterdir() if (int(run_dir.name.split('_')[-1]) % 4) == args.mod]
+    for run_dir in tqdm(directories):
+         if (run_dir / 'full_run.pth').exists():
+            #print('###############################')
+            #print(seed)
             cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output_dir, device, epochs)
 
 
