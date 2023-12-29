@@ -216,8 +216,8 @@ def run_and_write(
         model_seed,
         epoch
     )
-    ldf.write_parquet(output_dir / f'left_cosets/seed={model_seed}/{epoch}.parquet')
-    rdf.write_parquet(output_dir / f'right_cosets/seed={model_seed}/{epoch}.parquet')
+    ldf.write_parquet(output_dir / f'left_cosets/{model_seed}/{epoch}.parquet')
+    rdf.write_parquet(output_dir / f'right_cosets/{model_seed}/{epoch}.parquet')
     
 
 def cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output_dir, device, epochs):
