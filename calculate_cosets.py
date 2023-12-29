@@ -206,6 +206,10 @@ def run_and_write(
         n,
         output_dir
 ):
+    left_out = output_dir / f'left_cosets/{model_seed}/{epoch}.parquet'
+    right_out = output_dir / f'right_cosets/{model_seed}/{epoch}.parquet'
+    if left_out.exists() and right_out.exists():
+        return
     model = SnMLP.from_config(config)
     model.load_state_dict(ckpt)
     ldf, rdf = _analysis(
@@ -216,8 +220,8 @@ def run_and_write(
         model_seed,
         epoch
     )
-    ldf.write_parquet(output_dir / f'left_cosets/{model_seed}/{epoch}.parquet')
-    rdf.write_parquet(output_dir / f'right_cosets/{model_seed}/{epoch}.parquet')
+    ldf.write_parquet(left_out)
+    rdf.write_parquet(right_out)
     
 
 def cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output_dir, device, epochs):
@@ -230,11 +234,10 @@ def cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output
     
     full_run = torch.load(run_dir / 'full_run.pth', map_location=device)
     
-    #checkpoint_epochs = full_run['checkpoint_epochs'] + [49999]
+    checkpoints = full_run['checkpoints'] + [full_run['model']]
+    checkpoint_epochs = full_run['checkpoint_epochs'] + [49999]
 
-    #epoch_pairs = list(zip(checkpoint_epochs, full_run['checkpoints']))
-
-    epoch_pairs = [(49999, full_run['model'])]
+    epoch_pairs = list(zip(checkpoint_epochs, checkpoints))
     
     for epoch, ckpt in epoch_pairs:
         run_and_write(
