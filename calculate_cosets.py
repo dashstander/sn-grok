@@ -177,7 +177,7 @@ def _analysis(
     W = model.linear.weight
 
     llinear_ft = slow_sn_ft_1d(model.lembed.weight @ W[:, :embed_dim].T, n)
-    rlinear_ft = slow_sn_ft_1d(model.lembed.weight @ W[:, embed_dim:].T, n)
+    rlinear_ft = slow_sn_ft_1d(model.rembed.weight @ W[:, embed_dim:].T, n)
 
     llinear_decomp = sn_fourier_basis(llinear_ft, Sn)
     rlinear_decomp = sn_fourier_basis(rlinear_ft, Sn)
@@ -234,10 +234,12 @@ def cosets_over_time(run_dir, full_left_coset_df, full_right_coset_df, n, output
     
     full_run = torch.load(run_dir / 'full_run.pth', map_location=device)
     
-    checkpoints = full_run['checkpoints'] + [full_run['model']]
-    checkpoint_epochs = full_run['checkpoint_epochs'] + [49999]
+    #checkpoints = full_run['checkpoints'] + [full_run['model']]
+    #checkpoint_epochs = full_run['checkpoint_epochs'] + [49999]
 
-    epoch_pairs = list(zip(checkpoint_epochs, checkpoints))
+    #epoch_pairs = list(zip(checkpoint_epochs, checkpoints))
+
+    epoch_pairs = [(49999, full_run['model'])]
     
     for epoch, ckpt in epoch_pairs:
         run_and_write(
