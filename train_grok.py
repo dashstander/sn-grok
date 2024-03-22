@@ -229,7 +229,7 @@ def main():
     train_data, test_data, mult_table = get_dataloaders(
         group_mult_table,
         config['train'],
-        np_rng,
+        seed,
         device
     )
 
