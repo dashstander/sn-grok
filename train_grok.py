@@ -126,7 +126,7 @@ def loss_fn(logits, labels):
 
 def train_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda')
-    for lperm, rperm, target in tqdm(dataloader):
+    for lperm, rperm, target in tqdm.tqdm(dataloader):
         logits = model(lperm, rperm)
         losses = loss_fn(logits, target)
         mean_loss = losses.mean()
