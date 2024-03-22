@@ -186,9 +186,9 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
             test_loss_data.append(test_loss)
             model_state = copy.deepcopy(model.state_dict())
             opt_state = copy.deepcopy(optimizer.state_dict())
-            freq_data.melt(
-                id_vars=['epoch', 'layer', 'irrep']
-            ).write_parquet(checkpoint_dir / f'fourier{epoch}.parquet')
+            #freq_data.melt(
+            #    id_vars=['epoch', 'layer', 'irrep']
+            #).write_parquet(checkpoint_dir / f'fourier{epoch}.parquet')
             torch.save(
                 {
                     "model": model_state,
