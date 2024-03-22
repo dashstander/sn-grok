@@ -73,18 +73,32 @@ def fourier_analysis(model, group, epoch):
     return df, lpowers, rpowers, unembed
 
 
-def train_test_split(df, frac_train, rng):
+def train_test_split(df, frac_train, seed):
     group_order = df.shape[0]
-    num_train_samples = int(group_order * frac_train)
-    zeroes = pl.zeros(group_order, dtype=pl.UInt8)
-    train_split = rng.choice(group_order, num_train_samples, replace=False)
-    zeroes[train_split] = 1
-    return df.with_columns(zeroes.alias('in_train'))
+    #zeroes = pl.zeros(group_order, dtype=pl.UInt8, eager=True)
+    train_split = (
+        pl.int_range(0, group_order, eager=True)
+        .sample(
+            fraction=frac_train,
+            with_replacement=False,
+            seed=seed)
+    )
+    return (
+        df
+        .with_row_count()
+        .with_columns(
+            pl.when(pl.col('row_nr').is_in(train_split))
+            .then(pl.lit(1))
+            .otherwise(pl.lit(0))
+            .alias('in_train')
+        )
+        .select(pl.exclude('row_nr'))
+    )
 
 
-def get_dataloaders(group_mult_table, config, rng, device):
+def get_dataloaders(group_mult_table, config, seed, device):
     frac_train = config['frac_train']
-    group_mult_table = train_test_split(group_mult_table, frac_train, rng)
+    group_mult_table = train_test_split(group_mult_table, frac_train, seed)
     sn_split = group_mult_table.partition_by('in_train', as_dict=True)
     train_lperms = torch.as_tensor(sn_split[1].select('index_left').to_numpy(), dtype=torch.int64, device=device)
     train_rperms = torch.as_tensor(sn_split[1].select('index_right').to_numpy(), dtype=torch.int64, device=device)
@@ -155,6 +169,8 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
 
         optimizer.zero_grad()
 
+
+        """
         if epoch % 1000 == 0:
             freq_data, left_powers, right_powers, unembed_powers = fourier_analysis(model, group, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
@@ -163,6 +179,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
             msg.update(left_powers)
             msg.update(right_powers)
             msg.update(unembed_powers)
+        """
 
         if epoch in checkpoint_epochs:
             train_loss_data.append(train_loss)
