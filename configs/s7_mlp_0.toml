@@ -1,6 +1,6 @@
 [train]
 n = 7
-frac_train = 0.5
+frac_train = 0.8
 batch_size = 131072
 num_epochs = 50000
 checkpoint_every = 1000
