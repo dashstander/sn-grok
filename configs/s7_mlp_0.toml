@@ -16,8 +16,8 @@ seed = 0
 n = ${train.n}
 
 [model]
-embed_dim = 512
-model_dim = 4096
+embed_dim = 1024
+model_dim = 8192
 vocab_size = 5040
 tie_lr = false
 
