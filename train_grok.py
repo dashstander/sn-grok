@@ -107,9 +107,9 @@ def get_dataloaders(group_mult_table, config, seed, device):
     test_rperms = torch.as_tensor(sn_split[0].select('index_right').to_numpy(), dtype=torch.int64, device=device)
     test_targets = torch.as_tensor(sn_split[0].select('index_target').to_numpy(), dtype=torch.int64, device=device)
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
-    test_data = TensorDataset(test_lperms, test_rperms,test_targets)
-    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'])
-    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'])
+    test_data = TensorDataset(test_lperms, test_rperms, test_targets)
+    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'], pin_memory=True)
+    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'], pin_memory=True)
 
     return train_dataloader, test_dataloader, group_mult_table
 
@@ -126,7 +126,7 @@ def loss_fn(logits, labels):
 
 def train_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda')
-    for lperm, rperm, target in dataloader:
+    for lperm, rperm, target in tqdm(dataloader):
         logits = model(lperm, rperm)
         losses = loss_fn(logits, target)
         mean_loss = losses.mean()
