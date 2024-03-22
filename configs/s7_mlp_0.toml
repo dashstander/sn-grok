@@ -1,0 +1,35 @@
+[train]
+n = 7
+frac_train = 0.5
+batch_size = 131072
+num_epochs = 50000
+checkpoint_every = 1000
+extra_checkpoints = [2, 4, 8, 16, 32, 64, 128, 512]
+device = "cuda"
+checkpoint_dir = "/checkpoints/S7_init"
+run_dir = "s7_50"
+seed = 0
+
+
+[group]
+@groups = "Sn"
+n = ${train.n}
+
+[model]
+embed_dim = 512
+model_dim = 256
+vocab_size = 5040
+tie_lr = false
+
+
+[optimizer]
+algorithm = "adam"
+lr = 1e-3
+weight_decay = 1.0
+betas = [0.9, 0.98]
+
+
+[wandb]
+entity = "dstander"
+group = "S7_50pcnt_sweep"
+project = "S7_50pcnt"
