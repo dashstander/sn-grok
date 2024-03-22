@@ -17,7 +17,7 @@ n = ${train.n}
 
 [model]
 embed_dim = 512
-model_dim = 256
+model_dim = 4096
 vocab_size = 5040
 tie_lr = false
 
