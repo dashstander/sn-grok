@@ -108,8 +108,8 @@ def get_dataloaders(group_mult_table, config, seed, device):
     test_targets = torch.as_tensor(sn_split[0].select('index_target').to_numpy(), dtype=torch.int32, device=device)
     train_data = TensorDataset(train_lperms, train_rperms, train_targets)
     test_data = TensorDataset(test_lperms, test_rperms, test_targets)
-    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'], pin_memory=True)
-    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'], pin_memory=True)
+    train_dataloader = DataLoader(train_data, batch_size=config['batch_size'], pin_memory=False)
+    test_dataloader = DataLoader(test_data, batch_size=config['batch_size'], pin_memory=False)
 
     return train_dataloader, test_dataloader, group_mult_table
 
