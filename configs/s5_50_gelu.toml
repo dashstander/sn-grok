@@ -20,7 +20,7 @@ n = 5
 embed_dim = 256
 model_dim = 128
 vocab_size = 120
-act_fn = 'gelu'
+act_fn = "gelu"
 tie_lr = false
 
 
