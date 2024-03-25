@@ -124,16 +124,13 @@ def loss_fn(logits, labels):
     return -1. * correct_log_probs
 
 
-def train_forward(model, dataloader, optimizer):
+def train_forward(model, dataloader):
     total_loss = torch.tensor(0., device='cuda')
     for lperm, rperm, target in tqdm.tqdm(dataloader):
         logits = model(lperm, rperm)
         losses = loss_fn(logits, target)
         mean_loss = losses.mean()
         mean_loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        wandb.log({'loss/train': mean_loss})
         total_loss += mean_loss
     return total_loss.item()
 
@@ -161,21 +158,19 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
     test_loss_data = []
 
     for epoch in tqdm.tqdm(range(train_config['num_epochs'])):
-        train_loss = train_forward(model, train_dataloader, optimizer)
-
+        train_loss = train_forward(model, train_dataloader)
+        optimizer.step()
         optimizer.zero_grad()
 
-        msg = {'loss/epoch': train_loss}
+        msg = {'loss/train': train_loss}
 
-        if epoch % 1 == 0:
+        if epoch % 10 == 0:
             with torch.no_grad():
                 test_loss = test_forward(model, test_dataloader)
                 msg['loss/test'] = test_loss
 
         optimizer.zero_grad()
 
-
-        """
         if epoch % 1000 == 0:
             freq_data, left_powers, right_powers, unembed_powers = fourier_analysis(model, group, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
@@ -184,7 +179,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
             msg.update(left_powers)
             msg.update(right_powers)
             msg.update(unembed_powers)
-        """
+        
 
         if epoch in checkpoint_epochs:
             train_loss_data.append(train_loss)
