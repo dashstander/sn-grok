@@ -1,6 +1,4 @@
-accelerate
 confection
-functorch
 git+https://github.com/dashstander/TransformerLens
 plotnine
 polars
