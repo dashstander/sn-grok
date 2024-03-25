@@ -170,7 +170,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
                 msg['loss/test'] = test_loss
 
         optimizer.zero_grad()
-
+        """
         if epoch % 1000 == 0:
             freq_data, left_powers, right_powers, unembed_powers = fourier_analysis(model, group, epoch)
             left_powers = {f'left_linear/{k}': v for k, v in left_powers.items()}
@@ -179,6 +179,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
             msg.update(left_powers)
             msg.update(right_powers)
             msg.update(unembed_powers)
+        """
         
 
         if epoch in checkpoint_epochs:

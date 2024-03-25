@@ -5,7 +5,6 @@ from torch.nn.functional import relu, gelu, silu
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 
 
-
 activation_functions = {
     'relu': relu,
     'gelu': gelu,
