@@ -160,7 +160,7 @@ def train(model, optimizer, train_dataloader, test_dataloader, config, seed, gro
     train_loss_data = []
     test_loss_data = []
 
-    for epoch in tqdm.tqdm(start_epoch, range(train_config['num_epochs'])):
+    for epoch in tqdm.tqdm(range(start_epoch+1, train_config['num_epochs'])):
         train_loss = train_forward(model, train_dataloader, optimizer)
 
         optimizer.zero_grad()
