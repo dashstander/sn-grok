@@ -1,4 +1,3 @@
-import functorch
 from itertools import product
 import torch
 from .dihedral import Dihedral
@@ -12,7 +11,7 @@ from .tableau import conjugate_partition, generate_partitions
 def _dot(fx, rho):
     return fx * rho
 
-fft_dot = functorch.vmap(_dot, in_dims=(0, 0))
+fft_dot = torch.vmap(_dot, in_dims=(0, 0))
 
 
 def _fft_sum(fx, rho):
@@ -40,10 +39,10 @@ def _ift_trace(ft_vals, inv_rep):
         return dim * torch.trace(inv_rep @ ft_vals)
 
 
-ift_trace = functorch.vmap(_ift_trace, in_dims=(0, None))
-fft_sum = functorch.vmap(_fft_sum, in_dims=(1, None))
-batch_kron = functorch.vmap(torch.kron, in_dims=(0, 0))
-frob = functorch.vmap(_frob_norm, in_dims=0)
+ift_trace = torch.vmap(_ift_trace, in_dims=(0, None))
+fft_sum = torch.vmap(_fft_sum, in_dims=(1, None))
+batch_kron = torch.vmap(torch.kron, in_dims=(0, 0))
+frob = torch.vmap(_frob_norm, in_dims=0)
 
 
 def calc_power(ft, group_order):
