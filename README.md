@@ -1,13 +1,26 @@
-# S_n Circuits
+# $S_n$ Circuits
 
 ## Installation
 
-The repository should be pip-installable. 
+Clone the repository and create a virtual environment.
 
 ```bash
 git clone git@github.com:dashstander/sn-grok.git
-cd sn-grok && pip3 install -e .
+cd sn-grok
+python -m venv .venv
+source .venv/bin/activate
 ```
+
+Install the correct version of Pytorch for your system from the instructions [here](https://pytorch.org/get-started/locally/).
+
+Install the rest of the requirements. The repository should be pip-installable. 
+
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
+```
+
 
 ## Notebook
 
