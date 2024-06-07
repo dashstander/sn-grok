@@ -1,6 +1,6 @@
 confection
-git+https://github.com/dashstander/TransformerLens
 plotnine
 polars
 tqdm
+transformer_lens
 wandb
